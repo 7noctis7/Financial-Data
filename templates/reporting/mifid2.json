@@ -1,0 +1,19 @@
+{
+  "name": "MiFID II — Transaction Reporting",
+  "department": "regulatory",
+  "norm_ref": "Directive 2014/65/UE (MiFID II) / MiFIR art. 26 — RTS 22 ESMA",
+  "classification": "restricted",
+  "roles": ["regulatory-officer", "auditor"],
+  "title": "MiFID II — Déclaration des transactions",
+  "dataset": "transactions",
+  "columns": [
+    {"key": "trade_id", "label": "Référence de transaction"},
+    {"key": "instrument_id", "label": "Instrument (ISIN)"},
+    {"key": "counterparty_lei", "label": "LEI contrepartie"},
+    {"key": "notional", "label": "Montant"},
+    {"key": "currency", "label": "Devise"},
+    {"key": "status", "label": "Statut"},
+    {"key": "executed_at", "label": "Horodatage d'exécution (UTC)"}
+  ],
+  "required_assertions": ["existence", "completeness", "accuracy", "presentation"]
+}

@@ -99,6 +99,7 @@ class ReportGenerator:
             sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")).hexdigest()
         annex = [
             f"Rapport : {template['name']} ({template['department']})",
+        ] + ([f"Norme source : {template['norm_ref']}"] if template.get("norm_ref") else []) + [
             f"Genere le : {_fr(timestamp)} UTC ({timestamp})",
             f"Demandeur : {requester} (role : {role})",
             f"Provenance des donnees : {', '.join(sorted(origins))}",
@@ -130,6 +131,7 @@ class ReportGenerator:
         path.write_bytes(content)
         metadata = {
             "path": str(path), "template": template_name, "format": fmt,
+            "norm_ref": template.get("norm_ref"),
             "generated_at": timestamp, "requester": requester, "role": role,
             "origins": sorted(origins), "rows": len(rows),
             "content_hash": content_hash, "file_hash": file_hash,
@@ -144,19 +146,31 @@ class ReportGenerator:
     def demo(self, template_name, fmt, requester, role, business_date, seed=42):
         """Journée simulée → assertions certifiées → livrable certifié."""
         from mesh.derivations import derive_cash_positions, derive_exposures
-        from sim.generator import SimulatedTradingSource, simulate_bank_statements
+        from sim.generator import (INSTRUMENTS, SimulatedTradingSource,
+                                   simulate_bank_statements)
 
         template = self._template(template_name)
         trades = SimulatedTradingSource(seed=seed).fetch(business_date)
-        statements = simulate_bank_statements(trades, seed=seed)
-        if template["dataset"] == "exposures":
+        asset_class = {ident: cls for ident, cls, _c, _m in INSTRUMENTS}
+
+        def _trade_row(t):
+            return {"trade_id": t["trade_id"], "instrument_id": t["instrument_id"],
+                    "asset_class": asset_class.get(t["instrument_id"], "other"),
+                    "counterparty_lei": t["counterparty_lei"],
+                    "notional": t["notional"]["amount"],
+                    "currency": t["notional"]["currency"],
+                    "status": t["status"], "executed_at": _fr(t["executed_at"])}
+
+        dataset = template["dataset"]
+        if dataset == "exposures":
             batch = derive_exposures(trades, business_date)
             rows = [{"counterparty_lei": r["counterparty_lei"],
                      "exposure_eur": r["exposure"]["amount"],
                      "limit_utilisation": r["limit_utilisation"],
                      "computed_at": _fr(r["computed_at"])} for r in batch["records"]]
             urn = "urn:fcc:risk:exposures"
-        else:
+        elif dataset == "cash_positions":
+            statements = simulate_bank_statements(trades, seed=seed)
             batch = derive_cash_positions(trades, statements, business_date)
             rows = [{"account_id": r["account_id"],
                      "balance": r["balance"]["amount"],
@@ -164,6 +178,19 @@ class ReportGenerator:
                      "reconciled": "oui" if r["reconciled"] else "non",
                      "value_date": _fr(r["value_date"])} for r in batch["records"]]
             urn = "urn:fcc:treasury:cash-positions"
+        elif dataset == "derivative_trades":  # EMIR : IRS + change à terme
+            batch = trades
+            rows = [_trade_row(t) for t in trades["records"]
+                    if asset_class.get(t["instrument_id"]) in ("irs", "fx_forward")
+                    and t["status"] != "cancelled"]
+            urn = "urn:fcc:trading:executed-trades"
+        elif dataset == "transactions":  # MiFID II : toutes les exécutions
+            batch = trades
+            rows = [_trade_row(t) for t in trades["records"]
+                    if t["status"] != "cancelled"]
+            urn = "urn:fcc:trading:executed-trades"
+        else:
+            raise ReportError(f"dataset inconnu dans le template : {dataset!r}")
         assertions = demo_assertions(self.audit_log, urn, business_date, batch["origin"])
         return self.generate(template_name, rows, assertions, requester, role,
                              fmt=fmt, business_date=business_date)
