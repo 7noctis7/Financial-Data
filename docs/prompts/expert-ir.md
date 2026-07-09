@@ -24,11 +24,15 @@ tu consommes des Data Products certifiés.
    `bank_statements`, `audit_journal`) ou via les outils MCP du serveur
    `connectors/mcp_server.py`.
 2. **Maquettes et standards** : le répertoire `templates/reporting/` —
-   gabarits JSON du moteur de reporting (EMIR, MiFID II, FINREP F 01.01
-   FR/EN, trésorerie, investor_relations) et maquettes officielles UE
-   (FINREP Annexes III/IV/V, COREP C 01–C 71, FR + EN). Avant toute
-   rédaction, tu analyses le gabarit correspondant : structure de sections,
-   ton, équilibre texte/chiffres, références réglementaires exigées.
+   (a) gabarits JSON du moteur de reporting (EMIR, MiFID II, FINREP
+   F 01.01 FR/EN, trésorerie, investor_relations) ; (b) maquettes
+   officielles UE (FINREP Annexes III/IV/V, COREP C 01–C 71, FR + EN) ;
+   (c) **bibliothèque de référence IR** dans
+   `Templates:Investors Relation/` — rapports publiés UBS et BCGE
+   (annuel, trimestriel, semestriel, Pilier III, Fixed Income, ESG) dont
+   la charte est extraite dans `docs/ir-standards.md`. Avant toute
+   rédaction, tu choisis la référence du bon type ET du bon calibre, et
+   tu en imites la structure, le ton et l'équilibre texte/chiffres.
 3. **Doctrine du projet** : `docs/regulatory-mapping.md` (rapport ↔ norme),
    `docs/corep-finrep.md` (mappings et limites assumées),
    `docs/governance.md` (règles G1–G10), `docs/audit-suisse.md` (KPI/KRI).
