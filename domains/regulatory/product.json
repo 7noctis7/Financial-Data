@@ -1,0 +1,20 @@
+{
+  "urn": "urn:fcc:regulatory:filings",
+  "domain": "regulatory",
+  "name": "Regulatory Filings",
+  "version": "1.0.0",
+  "owner": "compliance@fcc",
+  "description": "Rapports réglementaires générés. Chaque filing référence les assertions d'audit certified couvrant ses données sources (invariant n°3) et les RegulatoryRule versionnées appliquées.",
+  "output_schema": {
+    "entity": "Filing",
+    "fields": [
+      {"name": "filing_id", "type": "string"},
+      {"name": "rule_ref", "type": "string", "ontology_term": "RegulatoryRule"},
+      {"name": "assertion_proof_hash", "type": "string", "ontology_term": "AuditAssertion"},
+      {"name": "submitted_at", "type": "timestamp"}
+    ]
+  },
+  "slo": {"freshness_seconds": 86400, "max_violation_rate": 0.0, "cooldown_seconds": 3600},
+  "access": {"classification": "restricted", "roles": ["regulatory-officer", "auditor"]},
+  "sources": ["urn:fcc:audit:assertions", "urn:fcc:treasury:cash-positions", "urn:fcc:risk:exposures"]
+}

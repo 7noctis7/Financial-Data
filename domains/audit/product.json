@@ -1,0 +1,21 @@
+{
+  "urn": "urn:fcc:audit:assertions",
+  "domain": "audit",
+  "name": "Audit Assertions",
+  "version": "1.0.0",
+  "owner": "internal-audit@fcc",
+  "description": "Assertions d'audit signées sur les autres Data Products, ancrées dans le journal de preuve chaîné. Seul produit dont Regulatory et Investor Relations peuvent dériver des publications.",
+  "output_schema": {
+    "entity": "AuditAssertion",
+    "fields": [
+      {"name": "product_urn", "type": "string"},
+      {"name": "scope", "type": "string"},
+      {"name": "status", "type": "string"},
+      {"name": "proof_hash", "type": "string"},
+      {"name": "asserted_at", "type": "timestamp"}
+    ]
+  },
+  "slo": {"freshness_seconds": 86400, "max_violation_rate": 0.0, "cooldown_seconds": 3600},
+  "access": {"classification": "internal", "roles": ["auditor", "regulatory-officer", "investor-relations"]},
+  "sources": ["urn:fcc:trading:executed-trades", "urn:fcc:treasury:cash-positions", "urn:fcc:risk:exposures"]
+}

@@ -1,0 +1,21 @@
+{
+  "urn": "urn:fcc:treasury:cash-positions",
+  "domain": "treasury",
+  "name": "Cash Positions",
+  "version": "1.0.0",
+  "owner": "treasury-ops@fcc",
+  "description": "Soldes cash par compte et date de valeur, avec statut de réconciliation bancaire. Les suggestions de matching IA sont validées humainement avant publication.",
+  "output_schema": {
+    "entity": "CashPosition",
+    "fields": [
+      {"name": "account_id", "type": "string"},
+      {"name": "balance", "type": "money"},
+      {"name": "value_date", "type": "timestamp"},
+      {"name": "reconciled", "type": "boolean"},
+      {"name": "settlement_ref", "type": "string", "ontology_term": "Settlement"}
+    ]
+  },
+  "slo": {"freshness_seconds": 3600, "max_violation_rate": 0.005, "cooldown_seconds": 1800},
+  "access": {"classification": "internal", "roles": ["treasury-ops", "risk-analyst", "auditor"]},
+  "sources": ["urn:fcc:trading:executed-trades"]
+}

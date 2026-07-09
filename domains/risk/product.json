@@ -1,0 +1,21 @@
+{
+  "urn": "urn:fcc:risk:exposures",
+  "domain": "risk",
+  "name": "Exposures",
+  "version": "1.0.0",
+  "owner": "risk-office@fcc",
+  "description": "Expositions par contrepartie et utilisation des limites, dérivées des trades exécutés et des positions cash. Produit dérivé : le lineage est obligatoire (invariant n°4).",
+  "output_schema": {
+    "entity": "Exposure",
+    "fields": [
+      {"name": "counterparty_lei", "type": "string", "ontology_term": "Counterparty"},
+      {"name": "exposure", "type": "money"},
+      {"name": "position_ref", "type": "string", "ontology_term": "Position"},
+      {"name": "limit_utilisation", "type": "number"},
+      {"name": "computed_at", "type": "timestamp"}
+    ]
+  },
+  "slo": {"freshness_seconds": 900, "max_violation_rate": 0.01, "cooldown_seconds": 900},
+  "access": {"classification": "internal", "roles": ["risk-analyst", "trader", "auditor"]},
+  "sources": ["urn:fcc:trading:executed-trades", "urn:fcc:treasury:cash-positions"]
+}

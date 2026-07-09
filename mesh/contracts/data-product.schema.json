@@ -1,0 +1,51 @@
+{
+  "$id": "urn:fcc:platform:data-product-contract:1",
+  "title": "Data Product Contract",
+  "type": "object",
+  "required": ["urn", "domain", "name", "version", "owner", "description", "output_schema", "slo", "access", "sources"],
+  "properties": {
+    "urn": {"type": "string", "pattern": "^urn:fcc:[a-z-]+:[a-z0-9-]+$"},
+    "domain": {"type": "string", "enum": ["trading", "treasury", "risk", "audit", "regulatory"]},
+    "name": {"type": "string"},
+    "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"},
+    "owner": {"type": "string"},
+    "description": {"type": "string"},
+    "output_schema": {
+      "type": "object",
+      "required": ["entity", "fields"],
+      "properties": {
+        "entity": {"type": "string"},
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "type"],
+            "properties": {
+              "name": {"type": "string"},
+              "type": {"type": "string", "enum": ["string", "number", "integer", "boolean", "timestamp", "money"]},
+              "ontology_term": {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+    "slo": {
+      "type": "object",
+      "required": ["freshness_seconds", "max_violation_rate", "cooldown_seconds"],
+      "properties": {
+        "freshness_seconds": {"type": "integer", "minimum": 1},
+        "max_violation_rate": {"type": "number", "minimum": 0},
+        "cooldown_seconds": {"type": "integer", "minimum": 1}
+      }
+    },
+    "access": {
+      "type": "object",
+      "required": ["classification"],
+      "properties": {
+        "classification": {"type": "string", "enum": ["public", "internal", "restricted"]},
+        "roles": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "sources": {"type": "array", "items": {"type": "string"}}
+  }
+}
