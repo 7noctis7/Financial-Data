@@ -19,9 +19,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Dépendance entrepôt analytique
+        run: pip install duckdb
       - name: Tests du noyau
         run: python3 -m unittest discover -s tests -v
-      - name: Export statique du dashboard
+      - name: Export statique du dashboard + explorateur
         run: python3 -m app export
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

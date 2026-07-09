@@ -6,8 +6,11 @@ Regulatory) possède et publie son **Data Product**, sous une gouvernance
 fédérée, une ontologie commune et un moteur de preuve d'audit immuable.
 
 - **En local** : `python3 -m app` → http://localhost:8787 (zéro dépendance, Python 3 seul)
-- **En ligne (gratuit)** : le dashboard est exporté en site statique et publié
-  automatiquement par GitHub Pages à chaque push sur `main`
+- **En ligne (gratuit)** : dashboard + explorateur exportés en site statique et
+  publiés automatiquement par GitHub Pages à chaque push sur `main`
+- **Explorateur de données** : les Data Products filtrables sans SQL (recherche,
+  filtres par colonne, tri, pagination, export CSV) ou en SQL DuckDB — en local
+  via l'API, en ligne via DuckDB-WASM dans le navigateur
 
 ---
 
@@ -18,9 +21,12 @@ python3 -m unittest discover -s tests -v   # tests du noyau (38+)
 python3 -m mesh catalog                    # catalogue des Data Products
 python3 -m mesh validate                   # valide contrats + ontologie
 python3 -m mesh simulate 2026-07-09        # rejoue un jour ouvré complet → data/
-python3 -m app                             # dashboard local sur :8787
+python3 -m app                             # dashboard + explorateur sur :8787
 python3 -m app export                      # site statique autonome → dist/
 ```
+
+L'explorateur SQL requiert la seule dépendance optionnelle du projet :
+`pip install duckdb`. Sans elle, dashboard et mesh fonctionnent normalement.
 
 ## 2. Architecture d'ensemble
 
@@ -77,6 +83,7 @@ mesh/                      PLATEFORME SELF-SERVICE (Python stdlib, zéro dépend
   derivations.py             Trésorerie + Risque dérivés des trades (fonctions pures)
   regulatory.py              Publication bloquée hors production (G8)
   pipeline.py                Journée ouvrée de bout en bout
+  warehouse.py               Entrepôt Parquet + SQL lecture seule (DuckDB, optionnel)
   __main__.py                CLI : catalog | validate | simulate
 domains/                   LES 5 DATA PRODUCTS (un contrat product.json chacun)
   trading/ treasury/ risk/ audit/ regulatory/
@@ -85,6 +92,7 @@ sim/                       SIMULATEUR — seul module du dépôt créant de la d
 app/                       APPLICATION (locale + export en ligne)
   data.py                    Agrégations → payload du dashboard
   static/index.html          Dashboard autonome (clair/sombre, SVG natif)
+  static/explorer.html       Explorateur : filtres sans SQL + éditeur SQL
   __main__.py                Serveur local :8787 | export statique → dist/
 tests/                     Tests unitaires + bout en bout
 .github/workflows/pages.yml  CI : tests puis publication GitHub Pages
