@@ -92,8 +92,8 @@ mesh/                      PLATEFORME SELF-SERVICE (Python stdlib, zéro dépend
   transformer.py             DataTransformer : ingestion CSV/API → ontologie, audit natif
   feedback.py                Boucle de feedback : corrections humaines → scores
   __main__.py                CLI : catalog | validate | simulate | backfill
-domains/                   LES 5 DATA PRODUCTS (un contrat product.json chacun)
-  trading/ treasury/ risk/ audit/ regulatory/
+domains/                   LES 7 DATA PRODUCTS (un contrat product.json chacun)
+  trading/ treasury/ risk/ audit/ regulatory/ client/ accounting/
 sim/                       SIMULATEUR — seul module du dépôt créant de la donnée
   generator.py               Trades bancaires réalistes + relevés imparfaits
 connectors/                CONNECTIVITÉ (couche anti-corruption + MCP)
