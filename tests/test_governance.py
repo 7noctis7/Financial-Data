@@ -166,6 +166,25 @@ class TestReporting(unittest.TestCase):
                 generator.generate("regulatory", [], assertions, "u@fcc",
                                    "regulatory-officer")
 
+    def test_emir_template_filters_derivatives_and_cites_norm(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            generator = self._generator(tmp)
+            meta = generator.demo("emir", "csv", requester="r@fcc",
+                                  role="regulatory-officer", business_date=DATE)
+            self.assertIn("648/2012", meta["norm_ref"])
+            content = Path(meta["path"]).read_text(encoding="utf-8")
+            self.assertIn("Norme source", content)
+            self.assertIn("IRS", content)              # dérivés présents
+            self.assertNotIn("FR0000120271", content)  # actions exclues
+
+    def test_mifid2_template_reports_all_executions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            generator = self._generator(tmp)
+            meta = generator.demo("mifid2", "xlsx", requester="r@fcc",
+                                  role="regulatory-officer", business_date=DATE)
+            self.assertIn("RTS 22", meta["norm_ref"])
+            self.assertGreater(meta["rows"], 200)  # ~250 trades moins annulés
+
     def test_generation_is_chained_in_audit_log(self):
         with tempfile.TemporaryDirectory() as tmp:
             generator = self._generator(tmp)

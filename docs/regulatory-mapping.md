@@ -10,8 +10,8 @@ objectif de roadmap, pas une promesse.
 | Rapport | Régulateur / Émetteur | Norme source | Data Products sources | Statut |
 |---|---|---|---|---|
 | **AnaCredit** | BCE | Règlement (UE) 2016/867 | `trading:executed-trades` + *credit:loans* (roadmap) | 🔜 nécessite le domaine Crédits |
-| **EMIR** (déclaration dérivés) | ESMA | Règlement (UE) 648/2012, RTS/ITS 2017 | `trading:executed-trades` (IRS, FX forwards), `risk:exposures` | 🟡 données disponibles, gabarit à écrire |
-| **MiFID II / MiFIR** (transaction reporting) | ESMA / AMF | Directive 2014/65/UE, RTS 22 | `trading:executed-trades` | 🟡 données disponibles, gabarit à écrire |
+| **EMIR** (déclaration dérivés) | ESMA | Règlement (UE) 648/2012, RTS/ITS 2017 | `trading:executed-trades` (IRS, FX forwards) | ✅ gabarit implémenté (`python3 -m reporting emir ...`) — soumission réelle sous G8 |
+| **MiFID II / MiFIR** (transaction reporting) | ESMA / AMF | Directive 2014/65/UE, RTS 22 | `trading:executed-trades` | ✅ gabarit implémenté (`python3 -m reporting mifid2 ...`) — soumission réelle sous G8 |
 | **FinFrag** (dérivés suisses) | FINMA | LIMF/FinfraG RS 958.1, Circ. FINMA 2018/... | `trading:executed-trades` | 🟡 équivalent EMIR suisse — même socle |
 | **LSFin / FIDLEG** (conduite, information client) | FINMA | LSFin RS 950.1 | *client:kyc* (roadmap), `audit:assertions` | 🔜 nécessite le domaine Client Lifecycle |
 | **CRS** (échange automatique) | OCDE / AFC | Norme commune de déclaration OCDE | *client:kyc* (roadmap), `treasury:cash-positions` | 🔜 nécessite le domaine Client Lifecycle |

@@ -1,0 +1,21 @@
+{
+  "name": "Déclaration EMIR — Dérivés",
+  "department": "regulatory",
+  "norm_ref": "Règlement (UE) n°648/2012 (EMIR) — RTS/ITS déclaration ESMA, art. 9",
+  "classification": "restricted",
+  "roles": ["regulatory-officer", "auditor"],
+  "title": "EMIR — Déclaration des contrats dérivés",
+  "dataset": "derivative_trades",
+  "columns": [
+    {"key": "trade_id", "label": "UTI (identifiant de transaction)"},
+    {"key": "instrument_id", "label": "Instrument"},
+    {"key": "asset_class", "label": "Classe d'actifs"},
+    {"key": "counterparty_lei", "label": "LEI contrepartie"},
+    {"key": "notional", "label": "Notionnel"},
+    {"key": "currency", "label": "Devise"},
+    {"key": "status", "label": "Statut"},
+    {"key": "executed_at", "label": "Exécution (UTC)"}
+  ],
+  "required_assertions": ["existence", "completeness", "rights_obligations",
+                          "valuation", "accuracy", "presentation"]
+}
