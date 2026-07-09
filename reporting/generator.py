@@ -290,6 +290,23 @@ class ReportGenerator:
             summary = [f"Synthese : RWA total {total_rwa:,.2f} EUR ; exigence de fonds".replace(",", " "),
                        f"propres (8 %) : {total_rwa * 0.08:,.2f} EUR. Ponderation v1 :".replace(",", " "),
                        "20 % etablissements bancaires reguels, 100 % autres (CRR art. 120-121)."]
+        elif dataset == "finrep_f0103":
+            ledger, balances = _ledger_balances_eur(trades, business_date, seed)
+            batch = ledger
+            urn = "urn:fcc:accounting:general-ledger"
+            capital = round(-balances.get("5000", 0.0), 2)
+            resultat = round(-balances.get("7000", 0.0), 2)
+            rows = [
+                {"row_ref": "010", "item": "Capital", "amount_eur": capital},
+                {"row_ref": "250", "item": "Resultat de l'exercice en cours "
+                 "(commissions percues, compte 7000)", "amount_eur": resultat},
+                {"row_ref": "300", "item": "TOTAL CAPITAUX PROPRES",
+                 "amount_eur": round(capital + resultat, 2)},
+            ]
+            control_context = {"ledger_equity_eur": round(capital + resultat, 2)}
+            summary = [f"Synthese : capitaux propres {capital + resultat:,.2f} EUR".replace(",", " "),
+                       f"dont resultat du jour {resultat:,.2f} EUR (commissions).".replace(",", " "),
+                       "Bouclage F 01.03 = F 01.01 TOTAL ACTIFS, au centime."]
         elif dataset in ("balance_sheet_econ", "pnl_v1"):
             batch, rows, control_context, summary = _accounting_statement(
                 trades, business_date, seed, dataset)

@@ -1,0 +1,55 @@
+{
+  "name": "FINREP F 01.03 — Bilan : capitaux propres (FR)",
+  "department": "regulatory",
+  "norm_ref": "Règlement d'exécution (UE) 2021/451 — FINREP, Annexe III, état F 01.03 (maquette : templates/reporting/FINREP-FR, onglet 1.3)",
+  "classification": "restricted",
+  "roles": [
+    "regulatory-officer",
+    "auditor"
+  ],
+  "title": "F 01.03 — État de la situation financière : Capitaux propres",
+  "dataset": "finrep_f0103",
+  "columns": [
+    {
+      "key": "row_ref",
+      "label": "Ligne"
+    },
+    {
+      "key": "item",
+      "label": "Poste"
+    },
+    {
+      "key": "amount_eur",
+      "label": "Valeur comptable (EUR)"
+    }
+  ],
+  "required_assertions": [
+    "existence",
+    "completeness",
+    "valuation",
+    "accuracy"
+  ],
+  "controls": [
+    {
+      "name": "F0103: total capitaux propres = capital + résultat",
+      "type": "recompute_total",
+      "key": "row_ref",
+      "amount_key": "amount_eur",
+      "total": "300",
+      "sum_of": [
+        "010",
+        "250"
+      ]
+    },
+    {
+      "name": "Bouclage F 01.03 <-> F 01.01 (capitaux propres = total actifs)",
+      "type": "sum_equals",
+      "key": "row_ref",
+      "amount_key": "amount_eur",
+      "keys": [
+        "300"
+      ],
+      "expected_context": "ledger_equity_eur"
+    }
+  ]
+}

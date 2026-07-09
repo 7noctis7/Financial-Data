@@ -1,0 +1,54 @@
+{
+  "name": "FinfraG — Déclaration des dérivés (CH)",
+  "department": "regulatory",
+  "norm_ref": "Loi sur l'infrastructure des marchés financiers (LIMF/FinfraG, RS 958.1), art. 104 ss — déclaration à un référentiel central ; surveillance FINMA",
+  "classification": "restricted",
+  "roles": [
+    "regulatory-officer",
+    "auditor"
+  ],
+  "title": "FinfraG — Déclaration des opérations sur dérivés",
+  "dataset": "derivative_trades",
+  "columns": [
+    {
+      "key": "trade_id",
+      "label": "Identifiant de transaction"
+    },
+    {
+      "key": "instrument_id",
+      "label": "Instrument"
+    },
+    {
+      "key": "asset_class",
+      "label": "Classe d'actifs"
+    },
+    {
+      "key": "counterparty_lei",
+      "label": "LEI contrepartie"
+    },
+    {
+      "key": "notional",
+      "label": "Notionnel"
+    },
+    {
+      "key": "currency",
+      "label": "Devise"
+    },
+    {
+      "key": "status",
+      "label": "Statut"
+    },
+    {
+      "key": "executed_at",
+      "label": "Exécution (UTC)"
+    }
+  ],
+  "required_assertions": [
+    "existence",
+    "completeness",
+    "rights_obligations",
+    "valuation",
+    "accuracy",
+    "presentation"
+  ]
+}

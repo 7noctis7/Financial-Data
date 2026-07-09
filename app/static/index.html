@@ -155,6 +155,26 @@
     <button type="submit">Rejouer la journée</button>
   </form>
 
+  <div class="card wide" style="margin-bottom:16px">
+    <h2>Étude de cas — « Banque du Léman SA » (établissement fictif)</h2>
+    <p class="hint" style="margin-bottom:10px">
+      Le fil rouge de l'outil : une journée de marché d'une banque privée genevoise —
+      250 opérations face à 6 contreparties interbancaires, règlement sur 3 nostros
+      (EUR/USD/GBP), avec les imperfections du réel (relevés incomplets, références
+      mutilées, un client PEP). Toutes les données sont simulées, déterministes et
+      recalculables (règle G8 : aucune publication réelle possible). Suis le parcours
+      dans l'ordre du métier — chaque étape montre ses entrées, son traitement et ses sorties :</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;font-size:12px">
+      <a href="aml.html" style="text-decoration:none;color:inherit;border:1px solid var(--border);border-radius:10px;padding:10px 12px"><b>1 · Entrée en relation (KYC/AML)</b><br><span style="color:var(--ink-muted)">dossiers clients → notation par règles → alertes scorées, décision humaine</span></a>
+      <a href="ingest.html" style="text-decoration:none;color:inherit;border:1px solid var(--border);border-radius:10px;padding:10px 12px"><b>2 · Entrée des opérations (Ingestion)</b><br><span style="color:var(--ink-muted)">CSV externe + totaux de contrôle → mapping ontologique → batch certifiable ou refus motivé</span></a>
+      <a href="recon.html" style="text-decoration:none;color:inherit;border:1px solid var(--border);border-radius:10px;padding:10px 12px"><b>4 · Post-marché (Réconciliation)</b><br><span style="color:var(--ink-muted)">trades ↔ relevés → matching IA explicable → accepter/rejeter journalisé</span></a>
+      <a href="accounting.html" style="text-decoration:none;color:inherit;border:1px solid var(--border);border-radius:10px;padding:10px 12px"><b>5 · Clôture (Comptabilité)</b><br><span style="color:var(--ink-muted)">partie double dérivée → « le bilan boucle ✓ » → exports Bilan/PnL certifiés</span></a>
+      <a href="explorer.html" style="text-decoration:none;color:inherit;border:1px solid var(--border);border-radius:10px;padding:10px 12px"><b>6 · Investigation (Explorateur)</b><br><span style="color:var(--ink-muted)">7 tables SQL → filtres sans code ou DuckDB → export CSV</span></a>
+      <a href="reports.html" style="text-decoration:none;color:inherit;border:1px solid var(--border);border-radius:10px;padding:10px 12px"><b>7 · Restitution (Rapports)</b><br><span style="color:var(--ink-muted)">assertions ISA + contrôles bloquants → EMIR, MiFID II, FinFrag, FINREP, COREP, PnL — avec Annexe de Preuve</span></a>
+    </div>
+    <p class="hint" style="margin:10px 0 0">Étape 3 = cette page (l'activité de marché du jour, ci-dessous). Détail complet du cas et lecture par fonction de direction (CEO, CFO, CRO, CAO, CDO, CIO) : <code>docs/case-study.md</code>.</p>
+  </div>
+
   <div class="kpis" id="kpis"></div>
 
   <div class="grid">
