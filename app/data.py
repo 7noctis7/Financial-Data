@@ -88,9 +88,24 @@ def build_payload(business_date, seed=42, n_trades=250):
         "instrument_classes": {i: CLASS_LABELS[c] for i, c in CLASS_BY_INSTRUMENT.items()},
         "counterparty_names": COUNTERPARTY_NAMES,
         "fx_to_eur": FX_TO_EUR,
+        "audit_anchor": summary.get("audit_head_hash"),
         "catalog": Registry().catalog(),
         "kris": _kris(summary, cash, exposures, trades, statements, business_date),
+        "trend": _trend(business_date, seed, n_trades),
     }
+
+
+def _trend(business_date, seed, n_trades):
+    """Comparaison avec le jour ouvré précédent (même simulateur)."""
+    import datetime
+    day = datetime.date.fromisoformat(business_date) - datetime.timedelta(days=1)
+    while day.weekday() >= 5:
+        day -= datetime.timedelta(days=1)
+    prev = SimulatedTradingSource(seed=seed, n_trades=n_trades).fetch(day.isoformat())
+    notional = sum(t["notional"]["amount"] * FX_TO_EUR[t["notional"]["currency"]]
+                   for t in prev["records"] if t["status"] != "cancelled")
+    return {"date": day.isoformat(), "trades": len(prev["records"]),
+            "notional_eur": round(notional, 2)}
 
 
 def _kris(summary, cash, exposures, trades, statements, business_date):

@@ -256,6 +256,18 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
+        if parsed.path == "/api/health":
+            from mesh import warehouse as _wh
+            self._send_json({
+                "status": "ok",
+                "time_utc": datetime.datetime.now(datetime.timezone.utc)
+                            .isoformat(timespec="seconds"),
+                "products": len(Registry().catalog()),
+                "duckdb": _wh.HAS_DUCKDB,
+                "audit_entries": len(_AUDIT.entries()),
+                "audit_chain_intact": _AUDIT.verify_chain() is None,
+            })
+            return
         if parsed.path == "/api/reports/templates":
             self._send_json({"templates": _templates_listing()})
             return

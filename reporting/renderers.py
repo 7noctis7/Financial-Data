@@ -238,4 +238,40 @@ def render_pdf(title, columns, rows, annex_lines, summary_lines=None):
     return out.getvalue()
 
 
-RENDERERS = {"csv": render_csv, "xlsx": render_xlsx, "pdf": render_pdf}
+def render_xbrl(title, columns, rows, annex_lines, summary_lines=None):
+    """Instance XBRL SIMPLIFIÉE (pré-mappage DPM/EBA) : un fait par ligne,
+    contexte et unité uniques. La soumission réelle exige la taxonomie
+    DPM officielle — cette instance en est l'étape de pré-mappage,
+    clairement marquée comme telle."""
+    from xml.sax.saxutils import escape as _e
+    key_col = columns[0]["key"]
+    amount_col = next((c["key"] for c in columns
+                       if any(isinstance(r.get(c["key"]), (int, float)) for r in rows)),
+                      columns[-1]["key"])
+    facts = []
+    for row in rows:
+        value = row.get(amount_col)
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            continue
+        name = "".join(ch if ch.isalnum() else "_" for ch in str(row[key_col]))
+        facts.append(f'  <fcc:r{name} contextRef="ctx" unitRef="EUR" '
+                     f'decimals="2">{value}</fcc:r{name}>')
+    annex = "\n".join("     " + _e(line) for line in annex_lines)
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        "<!-- INSTANCE SIMPLIFIEE (pre-mappage DPM/EBA) - " + _e(title) + " -->\n"
+        '<xbrl xmlns="http://www.xbrl.org/2003/instance"\n'
+        '      xmlns:iso4217="http://www.xbrl.org/2003/iso4217"\n'
+        '      xmlns:fcc="urn:fcc:reporting:pre-dpm">\n'
+        '  <context id="ctx"><entity>'
+        '<identifier scheme="urn:fcc">BANQUE-TEST-SA</identifier></entity>'
+        "<period><instant>1970-01-01</instant></period></context>\n"
+        '  <unit id="EUR"><measure>iso4217:EUR</measure></unit>\n'
+        + "\n".join(facts) + "\n"
+        "  <!-- ANNEXE DE PREUVE\n" + annex + "\n  -->\n"
+        "</xbrl>\n")
+    return xml.encode("utf-8")
+
+
+RENDERERS = {"csv": render_csv, "xlsx": render_xlsx, "pdf": render_pdf,
+             "xbrl": render_xbrl}

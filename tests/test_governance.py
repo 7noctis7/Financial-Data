@@ -226,3 +226,40 @@ class TestReporting(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestProductionConnectivity(unittest.TestCase):
+    CAMT = """<?xml version="1.0"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02">
+ <BkToCstmrStmt><Stmt><CreDtTm>2026-07-09T18:00:00Z</CreDtTm>
+  <Ntry><NtryRef>STL-TRD-20260709-00001</NtryRef><Amt Ccy="EUR">1000000.00</Amt>
+   <CdtDbtInd>CRDT</CdtDbtInd><ValDt><Dt>2026-07-09</Dt></ValDt></Ntry>
+  <Ntry><NtryRef>STL-TRD-20260709-00002</NtryRef><Amt Ccy="USD">250000.50</Amt>
+   <CdtDbtInd>DBIT</CdtDbtInd><ValDt><Dt>2026-07-09</Dt></ValDt></Ntry>
+ </Stmt></BkToCstmrStmt></Document>"""
+
+    def test_camt053_parses_to_production_batch(self):
+        from connectors.camt053 import parse_camt053
+        batch = parse_camt053(self.CAMT)
+        self.assertEqual(batch["origin"], "production")
+        self.assertEqual(len(batch["records"]), 2)
+        self.assertEqual(batch["records"][0]["amount"],
+                         {"amount": 1000000.0, "currency": "EUR"})
+        self.assertEqual(batch["records"][1]["amount"]["amount"], -250000.5)
+
+    def test_camt053_rejects_garbage(self):
+        from connectors.camt053 import Camt053Error, parse_camt053
+        with self.assertRaises(Camt053Error):
+            parse_camt053("<pas-du-camt/>")
+
+    def test_xbrl_format_produces_valid_instance(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            generator = ReportGenerator(audit_log=AuditLog(),
+                                        reports_dir=Path(tmp) / "r")
+            meta = generator.demo("finrep_f0101_fr", "xbrl", requester="r@fcc",
+                                  role="regulatory-officer", business_date=DATE)
+            content = Path(meta["path"]).read_text(encoding="utf-8")
+            self.assertTrue(content.startswith('<?xml'))
+            self.assertIn("pre-mappage DPM", content)
+            self.assertIn('<fcc:r380', content)
+            self.assertIn("ANNEXE DE PREUVE", content)

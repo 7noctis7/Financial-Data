@@ -113,6 +113,7 @@ def run_business_day(business_date, trading_source, statements_source,
         "filings": filings,
         "g8_refusals": refusals,
         "audit_chain_intact": log.verify_chain() is None,
+        "audit_head_hash": log.entries()[-1]["hash"] if log.entries() else None,
         "output_dir": str(out_dir),
     }
     (out_dir / "summary.json").write_text(

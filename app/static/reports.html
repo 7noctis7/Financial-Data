@@ -125,7 +125,7 @@ function card(t) {
            `<a class="dl" href="${href}" download>⬇ ${fmt.toUpperCase()}</a>`).join(" ")}
          <span style="color:var(--ink-muted);font-size:12px">génération interactive : en local</span></div>`
       : `<div class="row">
-           <select data-fmt>${["csv", "xlsx", "pdf"].map((f) => `<option>${f}</option>`).join("")}</select>
+           <select data-fmt>${["csv", "xlsx", "pdf", "xbrl"].map((f) => `<option>${f}</option>`).join("")}</select>
            <select data-role>${roles.map((r) => `<option>${r}</option>`).join("")}</select>
            <button class="primary" data-generate="${t.id}">Générer</button>
          </div>`}

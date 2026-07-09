@@ -482,7 +482,10 @@ function renderKpis(data, trades) {
     tile(scoped ? "Trades (périmètre filtré)" : "Trades du jour", fmtInt(trades.length),
          scoped ? `sur ${fmtInt(data.trades.length)}` : `seed ${data.params.seed}`) +
     tile("Notionnel" + (scoped ? " (périmètre)" : " traité"),
-         fmtEur(live.reduce((s, t2) => s + eur(t2.notional), 0)), "hors annulations") +
+         fmtEur(live.reduce((s, t2) => s + eur(t2.notional), 0)),
+         (!scoped && data.trend)
+           ? `${(() => { const d = (live.reduce((s, t2) => s + eur(t2.notional), 0) / data.trend.notional_eur - 1) * 100; return (d >= 0 ? "+" : "") + d.toFixed(1); })()} % vs ${fmtDate(data.trend.date)}`
+           : "hors annulations") +
     tile("Exposition totale", fmtEur(k.exposure_eur), "notionnel vif, EUR") +
     tile("Comptes réconciliés", `${k.reconciled_accounts}/${k.accounts}`,
       k.reconciled_accounts === k.accounts ? "trades ↔ relevés : complet" : "écarts en suspens") +
@@ -615,6 +618,7 @@ function render(data) {
     `${data.g8_refusals.length} publication(s) réglementaire(s) refusée(s) par la règle G8 (provenance ${data.origin}) — ` +
     `${data.filings.filter((f) => f.dry_run).length} dry-run marqué(s) DRYRUN. ` +
     `Catalogue : ${data.catalog.length} Data Products. ` +
+    (data.audit_anchor ? `Ancre d'audit publique du jour : <code>${data.audit_anchor.slice(0, 20)}…</code> (tête de la chaîne SHA-256 — publiée avec ce site, donc infalsifiable rétroactivement). ` : "") +
     `<a href="https://github.com/7noctis7/Financial-Data">Code source</a>`;
 }
 
