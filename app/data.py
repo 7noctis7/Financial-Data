@@ -87,6 +87,7 @@ def build_payload(business_date, seed=42, n_trades=250):
         "trades": trades["records"],  # détail complet pour les mini-fenêtres
         "instrument_classes": {i: CLASS_LABELS[c] for i, c in CLASS_BY_INSTRUMENT.items()},
         "counterparty_names": COUNTERPARTY_NAMES,
+        "fx_to_eur": FX_TO_EUR,
         "catalog": Registry().catalog(),
         "kris": _kris(summary, cash, exposures, trades, statements, business_date),
     }

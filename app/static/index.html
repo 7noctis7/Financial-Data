@@ -175,6 +175,19 @@
     <p class="hint" style="margin:10px 0 0">Étape 3 = cette page (l'activité de marché du jour, ci-dessous). Détail complet du cas et lecture par fonction de direction (CEO, CFO, CRO, CAO, CDO, CIO) : <code>docs/case-study.md</code>.</p>
   </div>
 
+  <div class="card wide" style="margin-bottom:12px">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <b style="font-size:13px">Filtres d'analyse</b>
+      <select id="f-cpty" style="padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--page);color:var(--ink-1);font:inherit"></select>
+      <select id="f-class" style="padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--page);color:var(--ink-1);font:inherit"></select>
+      <select id="f-status" style="padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--page);color:var(--ink-1);font:inherit">
+        <option value="">Tous statuts</option><option>executed</option><option>settled</option><option>cancelled</option>
+      </select>
+      <button class="badge theme-btn" id="f-reset">Réinitialiser</button>
+      <span class="hint" id="f-info" style="margin:0"></span>
+    </div>
+  </div>
+
   <div class="kpis" id="kpis"></div>
 
   <div class="grid">
@@ -459,6 +472,79 @@ function tile(label, value, note) {
   return `<div class="tile"><div class="label">${label}</div><div class="value">${value}</div>${note ? `<div class="note">${note}</div>` : ""}</div>`;
 }
 
+function renderKpis(data, trades) {
+  const fx = data.fx_to_eur || { EUR: 1 };
+  const eur = (m) => m.amount * (fx[m.currency] || 1);
+  const live = trades.filter((t2) => t2.status !== "cancelled");
+  const k = data.kpis;
+  const scoped = trades.length !== data.trades.length;
+  $("#kpis").innerHTML =
+    tile(scoped ? "Trades (périmètre filtré)" : "Trades du jour", fmtInt(trades.length),
+         scoped ? `sur ${fmtInt(data.trades.length)}` : `seed ${data.params.seed}`) +
+    tile("Notionnel" + (scoped ? " (périmètre)" : " traité"),
+         fmtEur(live.reduce((s, t2) => s + eur(t2.notional), 0)), "hors annulations") +
+    tile("Exposition totale", fmtEur(k.exposure_eur), "notionnel vif, EUR") +
+    tile("Comptes réconciliés", `${k.reconciled_accounts}/${k.accounts}`,
+      k.reconciled_accounts === k.accounts ? "trades ↔ relevés : complet" : "écarts en suspens") +
+    tile("Chaîne d'audit", k.audit_chain_intact ? "Intègre" : "CORROMPUE", "journal chaîné SHA-256");
+}
+
+function setupFilters(data) {
+  const cptySel = $("#f-cpty"), classSel = $("#f-class");
+  if (cptySel.options.length) return;
+  cptySel.innerHTML = '<option value="">Toutes contreparties</option>' +
+    Object.entries(data.counterparty_names).map(([lei, n]) => `<option value="${lei}">${n}</option>`).join("");
+  const classes = [...new Set(Object.values(data.instrument_classes))];
+  classSel.innerHTML = '<option value="">Toutes classes</option>' +
+    classes.map((c) => `<option>${c}</option>`).join("");
+  const apply = () => {
+    const f = { cpty: cptySel.value, cls: classSel.value, status: $("#f-status").value };
+    const filtered = data.trades.filter((t2) =>
+      (!f.cpty || t2.counterparty_lei === f.cpty) &&
+      (!f.cls || classOf(t2) === f.cls) &&
+      (!f.status || t2.status === f.status));
+    $("#f-info").textContent = (f.cpty || f.cls || f.status)
+      ? `${filtered.length}/${data.trades.length} trades dans le périmètre` : "";
+    renderKpis(data, filtered);
+    renderCharts(data, filtered);
+  };
+  cptySel.onchange = classSel.onchange = $("#f-status").onchange = apply;
+  $("#f-reset").onclick = () => {
+    cptySel.value = classSel.value = $("#f-status").value = ""; apply();
+  };
+}
+
+function renderCharts(data, trades) {
+  const fx = data.fx_to_eur || { EUR: 1 };
+  const eur = (m) => m.amount * (fx[m.currency] || 1);
+  const byHour = {};
+  for (const t2 of trades) { const h = t2.executed_at.slice(11, 13) + "h"; byHour[h] = (byHour[h] || 0) + 1; }
+  columnChart($("#chart-hours"),
+    data.trades_by_hour.map((r) => ({ hour: r.hour, count: byHour[r.hour] || 0 })),
+    (row) => hourDetail(row.hour));
+  const byCpty = {};
+  for (const t2 of trades) if (t2.status === "executed")
+    byCpty[t2.counterparty_lei] = (byCpty[t2.counterparty_lei] || 0) + eur(t2.notional);
+  const expoIndex = Object.fromEntries(data.exposures.map((e) => [e.lei, e]));
+  hbarChart($("#chart-expo"), Object.entries(byCpty)
+    .sort((a, b) => b[1] - a[1])
+    .map(([lei, v]) => ({
+      label: data.counterparty_names[lei] || lei, value: Math.round(v * 100) / 100,
+      tip: `${data.counterparty_names[lei] || lei}<br>LEI ${lei}<br><b>${fmtEur(v)}</b> (périmètre filtré)`,
+      onClick: () => expoIndex[lei] && counterpartyDetail(expoIndex[lei]),
+    })), { aria: "Exposition par contrepartie en euros" });
+  const byClass = {};
+  for (const t2 of trades) if (t2.status !== "cancelled")
+    byClass[classOf(t2)] = (byClass[classOf(t2)] || 0) + eur(t2.notional);
+  hbarChart($("#chart-class"), Object.entries(byClass)
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, v]) => ({
+      label, value: Math.round(v * 100) / 100,
+      tip: `${label}<br><b>${fmtEur(v)}</b>`,
+      onClick: () => classDetail(label),
+    })), { aria: "Notionnel par classe d'actifs en euros" });
+}
+
 function render(data) {
   DATA = data;
   const simulated = data.origin !== "production";
@@ -467,15 +553,7 @@ function render(data) {
     (simulated ? "⚠ Données simulées — G8 : publication bloquée" : "✓ Données de production");
   $("#date-badge").textContent = "Journée du " + fmtDate(data.business_date);
 
-  const k = data.kpis;
-  $("#kpis").innerHTML =
-    tile("Trades du jour", fmtInt(k.trades), `seed ${data.params.seed}`) +
-    tile("Notionnel traité", fmtEur(k.notional_eur), "hors annulations") +
-    tile("Exposition totale", fmtEur(k.exposure_eur), "notionnel vif, EUR") +
-    tile("Comptes réconciliés", `${k.reconciled_accounts}/${k.accounts}`,
-      k.reconciled_accounts === k.accounts ? "trades ↔ relevés : complet" : "écarts en suspens") +
-    tile("Chaîne d'audit", k.audit_chain_intact ? "Intègre" : "CORROMPUE",
-      "journal chaîné SHA-256");
+  renderKpis(data, data.trades);
 
   if (data.kris) {
     const k2 = data.kris;
@@ -496,16 +574,8 @@ function render(data) {
       kri("Assertions non certifiées", k2.qualified_assertions,
           k2.qualified_assertions > 0 ? 1 : 0, "audit continu");
   }
-  columnChart($("#chart-hours"), data.trades_by_hour, (row) => hourDetail(row.hour));
-  hbarChart($("#chart-expo"), data.exposures.map((e) => ({
-    label: e.counterparty, value: e.eur,
-    tip: `${e.counterparty}<br>LEI ${e.lei}<br><b>${fmtEur(e.eur)}</b> — ${(e.limit_utilisation * 100).toFixed(1)} % de la limite`,
-    onClick: () => counterpartyDetail(e),
-  })), { aria: "Exposition par contrepartie en euros" });
-  hbarChart($("#chart-class"), data.notional_by_class.map((c) => ({
-    label: c.label, value: c.eur, tip: `${c.label}<br><b>${fmtEur(c.eur)}</b>`,
-    onClick: () => classDetail(c.label),
-  })), { aria: "Notionnel par classe d'actifs en euros" });
+  setupFilters(data);
+  renderCharts(data, data.trades);
 
   $("#products").innerHTML =
     "<tr><th>Data Product</th><th class='num'>Records</th><th class='num'>Violations schéma</th><th>Disjoncteur</th><th>Assertion d'audit</th></tr>" +

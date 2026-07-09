@@ -39,6 +39,43 @@ _AUDIT = AuditLog()          # journal chaîné de la session serveur
 _FEEDBACK = FeedbackStore(REPO_ROOT / "data" / "feedback.jsonl")
 
 
+_PENDING_AML = {}  # trade_id -> proposition en attente de 2e validation (G11)
+
+
+def _aml_four_eyes(body):
+    """Contrôle 4 yeux (G11) : une décision AML exige DEUX acteurs distincts.
+
+    1er appel : la décision est PROPOSÉE (journalisée aml.proposed).
+    2e appel par un acteur différent : elle devient effective (journal +
+    feedback). Le même acteur qui tente de confirmer est refusé.
+    """
+    from mesh import aml
+    alert, actor = body["alert"], body.get("actor", "webapp")
+    escalated = bool(body["escalated"])
+    timestamp = body.get("timestamp", "")
+    key = alert["trade_id"]
+    pending = _PENDING_AML.get(key)
+    if pending is None:
+        _PENDING_AML[key] = {"actor": actor, "escalated": escalated}
+        _AUDIT.append(actor=actor, action="aml.proposed",
+                      subject_urn="urn:fcc:client:kyc-profiles",
+                      details={"trade_id": key, "escalated": escalated,
+                               "awaiting": "second-validator"},
+                      timestamp=timestamp)
+        return {"pending": True, "proposed_by": actor}
+    if pending["actor"] == actor:
+        raise PermissionError(
+            "contrôle 4 yeux (G11) : un second validateur DISTINCT est requis "
+            f"(proposé par {actor!r})")
+    feedback = _aml_feedback()
+    aml.decide(alert, escalated=pending["escalated"], actor=f"{pending['actor']}+{actor}",
+               audit_log=_AUDIT, timestamp=timestamp, feedback=feedback)
+    del _PENDING_AML[key]
+    return {"ok": True, "validated_by": [pending["actor"], actor],
+            "feedback_entries": len(feedback),
+            "audit_chain_intact": _AUDIT.verify_chain() is None}
+
+
 def _aml_feedback():
     from mesh.aml import AML_FEATURES
     return FeedbackStore(REPO_ROOT / "data" / "feedback-aml.jsonl",
@@ -209,14 +246,7 @@ class Handler(SimpleHTTPRequestHandler):
                 self._send_json({"ok": True, "feedback_entries": len(_FEEDBACK),
                                  "audit_chain_intact": _AUDIT.verify_chain() is None})
             elif path == "/api/aml/decide":
-                from mesh import aml
-                body = self._read_body()
-                feedback = _aml_feedback()
-                aml.decide(body["alert"], escalated=bool(body["escalated"]),
-                           actor=body.get("actor", "webapp"), audit_log=_AUDIT,
-                           timestamp=body.get("timestamp", ""), feedback=feedback)
-                self._send_json({"ok": True, "feedback_entries": len(feedback),
-                                 "audit_chain_intact": _AUDIT.verify_chain() is None})
+                self._send_json(_aml_four_eyes(self._read_body()))
             elif path == "/api/ingest":
                 self._send_json(_ingest(self._read_body()))
             else:

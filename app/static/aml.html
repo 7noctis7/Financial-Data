@@ -93,7 +93,9 @@
   <p class="sub">Domaine <b>Client Lifecycle</b> — dossiers KYC (donnée RGPD, classification
   <i>restricted</i>) et <b>pré-diagnostic AML</b> : l'activité du jour est criblée contre les
   profils (PEP, pays à risque, notation, montants, fractionnement). Une alerte est une
-  <b>priorité de revue</b>, jamais une accusation : l'humain escalade ou classe, tout est journalisé.</p>
+  <b>priorité de revue</b>, jamais une accusation : l'humain escalade ou classe sous
+  <b>contrôle 4 yeux</b> (proposition puis confirmation par un second validateur distinct — règle G11),
+  tout est journalisé.</p>
   <div class="kpis" id="kpis"></div>
   <div class="cols">
     <div class="card">
@@ -190,16 +192,27 @@ function render(data) {
     + `Lineage XAI : ${data.lineage_proof.map((p) => "<code>" + p.urn.replace("urn:fcc:", "") + "</code>").join(", ")}.`;
 }
 
-async function decideRow(row, alert_, escalated) {
+async function decideRow(row, alert_, escalated, actor) {
   const res = await fetch("/api/aml/decide", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ alert: alert_, escalated, actor: "webapp",
+    body: JSON.stringify({ alert: alert_, escalated, actor: actor || "analyste-1",
                            timestamp: new Date().toISOString().slice(0, 19) + "Z" }) });
   const body = await res.json();
-  if (!res.ok) { alert(body.error); return; }
-  row.cells[5].innerHTML = escalated
-    ? '<span class="decided esc">⚑ escaladé — journalisé</span>'
-    : '<span class="decided dis">classé — journalisé</span>';
+  if (!res.ok) { window.alert(body.error); return; }
+  if (body.pending) {
+    // Contrôle 4 yeux (G11) : proposition journalisée, 2e validateur requis
+    row.cells[5].innerHTML = `<span class="why">proposé par ${body.proposed_by} — </span>`;
+    const btn = document.createElement("button");
+    btn.textContent = "✓ Confirmer (2e validateur)";
+    btn.style.cssText = "border:1px solid var(--warning);background:var(--surface-1);color:var(--ink-1);font:inherit;font-size:12px;font-weight:600;border-radius:8px;padding:5px 10px;cursor:pointer";
+    btn.onclick = () => decideRow(row, alert_, escalated, "compliance-officer-2");
+    row.cells[5].appendChild(btn);
+    return;
+  }
+  row.cells[5].innerHTML = (escalated
+    ? '<span class="decided esc">⚑ escaladé</span>'
+    : '<span class="decided dis">classé</span>')
+    + ` <span class="why">4 yeux : ${body.validated_by.join(" + ")} — journalisé</span>`;
 }
 
 (async () => {
