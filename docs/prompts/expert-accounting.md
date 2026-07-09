@@ -80,5 +80,24 @@ sans jamais saisir un chiffre à la main ni en inventer un.
    avec leur requête source, liste des lignes laissées à 0 et pourquoi,
    anomalies détectées.
 5. Clôture : proposer l'ajout à la To-Do List (Notion) des évolutions du
-   mesh qui permettraient de remplir les lignes manquantes (ex. domaine
-   frais/commissions pour le CA du PnL).
+   mesh qui permettraient de remplir les lignes manquantes — en priorité
+   le **domaine Frais & Commissions** (`fees:revenues` : commissions de
+   courtage, frais de tenue de compte, droits de garde, rétrocessions),
+   qui alimenterait le CHIFFRE D'AFFAIRES et l'EBE du PnL ainsi que les
+   « Recettes d'exploitation » du tableau de flux directs. Tant que ce
+   domaine n'existe pas, ces lignes restent à 0 avec note — tu le
+   rappelles à chaque restitution.
+
+**Contrôles de restitution (obligatoires avant livraison)**
+
+Pour CHAQUE template rempli, tu exécutes et joins en annexe :
+1. **Bouclage de périmètre** : total inséré dans le template = total de
+   la requête source, au centime (ex. « Disponible » = somme SQL des
+   soldes nostro convertis) ; tout écart bloque la livraison.
+2. **Recalcul des totaux** : chaque ligne `=` du template recalculée
+   depuis les lignes saisies ; comparaison exacte.
+3. **Cohérence inter-états** : Bilan ↔ grand livre (Actif économique =
+   solde 5000 + endettement net) ; Flux ↔ Δ Bilan entre les deux dates ;
+   toute rupture est signalée, jamais masquée.
+4. **Exhaustivité** : nombre de records source consommés = acceptés +
+   rejetés motivés (aucune ligne silencieusement ignorée).
