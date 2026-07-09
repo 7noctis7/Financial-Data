@@ -19,7 +19,7 @@ class TestPayload(unittest.TestCase):
         self.assertEqual(len(payload["trades_by_hour"]), 11)  # 07h → 17h
         self.assertEqual(sum(r["count"] for r in payload["trades_by_hour"]), 100)
         self.assertLessEqual(len(payload["recent_trades"]), 10)
-        self.assertEqual(len(payload["catalog"]), 5)
+        self.assertEqual(len(payload["catalog"]), 6)
         json.dumps(payload)  # sérialisable tel quel
 
 

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ingestion — Financial Command Center</title>
+<style>
+  :root {
+    --surface-1: #fcfcfb; --page: #f9f9f7;
+    --ink-1: #0b0b0b; --ink-2: #52514e; --ink-muted: #898781;
+    --grid: #e1e0d9; --border: rgba(11,11,11,0.10);
+    --accent: #2a78d6; --accent-wash: rgba(42,120,214,0.10);
+    --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --surface-1: #1a1a19; --page: #0d0d0d;
+      --ink-1: #ffffff; --ink-2: #c3c2b7; --ink-muted: #898781;
+      --grid: #2c2c2a; --border: rgba(255,255,255,0.10);
+      --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16);
+    }
+  }
+  :root[data-theme="dark"] {
+    --surface-1: #1a1a19; --page: #0d0d0d;
+    --ink-1: #ffffff; --ink-2: #c3c2b7; --ink-muted: #898781;
+    --grid: #2c2c2a; --border: rgba(255,255,255,0.10);
+    --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink-1);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 20px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 4px; }
+  h1 { font-size: 20px; font-weight: 650; margin: 0; }
+  nav { display: flex; gap: 6px; flex-wrap: wrap; }
+  nav a, .theme-btn {
+    color: var(--ink-2); text-decoration: none; font-size: 13px; font-weight: 600;
+    padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px;
+    background: var(--surface-1); cursor: pointer; font-family: inherit;
+  }
+  nav a:hover, .theme-btn:hover { background: var(--accent-wash); }
+  .sub { color: var(--ink-2); margin: 0 0 16px; }
+  .cols { display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px; align-items: start; }
+  @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
+  .card { background: var(--surface-1); border: 1px solid var(--border);
+          border-radius: 12px; padding: 16px; min-width: 0; }
+  .card h2 { font-size: 14px; font-weight: 650; margin: 0 0 2px; }
+  .hint { font-size: 12px; color: var(--ink-muted); margin: 0 0 12px; }
+  textarea { width: 100%; min-height: 200px; resize: vertical;
+    font: 12px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    padding: 12px; border: 1px solid var(--border); border-radius: 10px;
+    background: var(--page); color: var(--ink-1); }
+  .row { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+  select, input[type=file] { padding: 6px 8px; border: 1px solid var(--border);
+    border-radius: 8px; background: var(--page); color: var(--ink-1); font: inherit; }
+  .primary { border: none; border-radius: 8px; background: var(--accent); color: #fff;
+             font: inherit; font-weight: 600; padding: 7px 16px; cursor: pointer; }
+  .ghost { border: 1px solid var(--border); background: none; color: var(--ink-2);
+           font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 8px; cursor: pointer; }
+  input:focus, select:focus, textarea:focus, button:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 1px; }
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; font-size: 13px; }
+  .kv dt { color: var(--ink-muted); }
+  .kv dd { margin: 0; word-break: break-all; font-variant-numeric: tabular-nums; }
+  #result .ok { color: var(--good); font-weight: 650; }
+  #result .err { color: var(--critical); font-weight: 650; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
+  th { text-align: left; color: var(--ink-muted); font-weight: 500;
+       padding: 5px 8px; border-bottom: 1px solid var(--grid); }
+  td { padding: 5px 8px; border-bottom: 1px solid var(--grid); }
+  code { font-size: 12px; }
+  .mapping td:first-child { color: var(--ink-muted); }
+</style>
+</head>
+<body>
+<script id="fcc-ingest-config" type="application/json">null</script>
+<div class="wrap">
+  <header>
+    <h1>Ingestion de données</h1>
+    <nav>
+      <a href="index.html">Dashboard</a><a href="explorer.html">Explorateur</a>
+      <a href="reports.html">Rapports</a><a href="recon.html">Réconciliation</a>
+      <a href="aml.html">KYC / AML</a>
+    </nav>
+    <span style="flex:1"></span>
+    <button class="theme-btn" id="theme"></button>
+  </header>
+  <p class="sub">Le <b>DataTransformer</b> fait entrer un CSV (export Excel, extraction core banking…)
+  dans le Data Product Trading : mapping vers l'ontologie, validation contre le contrat, rejets
+  motivés — et la piste d'audit (SHA-256 de l'entrée, acteur, horodatage) est injectée
+  automatiquement. La provenance <b>production</b> est ce qui débloque les vrais filings (règle G8).</p>
+  <div class="cols">
+    <div class="card">
+      <h2>Fichier CSV</h2>
+      <p class="hint">Colonnes attendues : <code>Deal Id;ISIN;LEI;Nominal;Ccy;State;Timestamp</code></p>
+      <textarea id="csv" spellcheck="false"></textarea>
+      <div class="row">
+        <input type="file" id="file" accept=".csv,text/csv">
+        <select id="origin"><option value="simulated">origin : simulated</option>
+          <option value="production">origin : production</option></select>
+        <button class="primary" id="run">Ingérer</button>
+        <button class="ghost" id="sample">Exemple</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Mapping ontologique</h2>
+      <p class="hint">Déclaratif — le dialecte source ne franchit jamais la frontière du mesh</p>
+      <table class="mapping">
+        <tr><th>Colonne source</th><th>Champ du contrat</th></tr>
+        <tr><td>Deal Id</td><td><code>trade_id</code></td></tr>
+        <tr><td>ISIN</td><td><code>instrument_id</code> (ontologie : Instrument)</td></tr>
+        <tr><td>LEI</td><td><code>counterparty_lei</code> (Counterparty)</td></tr>
+        <tr><td>Nominal + Ccy</td><td><code>notional</code> = (amount, currency)</td></tr>
+        <tr><td>State (minuscules)</td><td><code>status</code></td></tr>
+        <tr><td>Timestamp</td><td><code>executed_at</code> (ISO 8601 UTC)</td></tr>
+      </table>
+      <div id="result" style="margin-top:14px"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+(() => { /* thème clair/sombre partagé */
+  const THEMES = ["auto", "light", "dark"], LABELS = { auto: "◐ Auto", light: "☀ Clair", dark: "● Sombre" };
+  const apply = (t) => {
+    if (t === "auto") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", t);
+    const b = document.querySelector("#theme"); if (b) b.textContent = LABELS[t];
+  };
+  let theme = localStorage.getItem("fcc-theme") || "auto";
+  apply(theme);
+  addEventListener("DOMContentLoaded", () => { apply(theme);
+    document.querySelector("#theme").onclick = () => {
+      theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+      localStorage.setItem("fcc-theme", theme); apply(theme); };
+  });
+})();
+
+const $ = (s) => document.querySelector(s);
+const STATIC = JSON.parse($("#fcc-ingest-config").textContent) !== null;
+const SAMPLE = `Deal Id;ISIN;LEI;Nominal;Ccy;State;Timestamp
+D-1001;FR0000120271;R0MUWSFPU8MPRO8K5P83;1250000;EUR;EXECUTED;2026-07-09T10:12:00Z
+D-1002;US0378331005;G5GSEF7VJP5I7OUK5573;480000;USD;SETTLED;2026-07-09T11:03:00Z
+D-1003;DE0001102580;7LTWFZYICNSX8D621K86;pas-un-nombre;EUR;EXECUTED;2026-07-09T11:40:00Z
+D-1004;INT:IRS-EUR-5Y;549300ZK53CNGEEI6A29;30000000;EUR;EXECUTED;09/07/2026 14:00`;
+
+$("#sample").onclick = () => { $("#csv").value = SAMPLE; };
+$("#file").addEventListener("change", async (e) => {
+  const f = e.target.files[0];
+  if (f) $("#csv").value = await f.text();
+});
+
+$("#run").onclick = async () => {
+  if (STATIC) return;
+  const res = await fetch("/api/ingest", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ csv: $("#csv").value, origin: $("#origin").value,
+                           actor: "webapp", filename: ($("#file").files[0] || {}).name || "saisie" }) });
+  const body = await res.json();
+  if (!res.ok) { $("#result").innerHTML = `<span class="err">${body.error}</span>`; return; }
+  $("#result").innerHTML = `
+    <dl class="kv">
+      <dt>Acceptés</dt><dd><span class="ok">${body.accepted}</span></dd>
+      <dt>Rejetés</dt><dd><span class="${body.rejected ? "err" : "ok"}">${body.rejected}</span></dd>
+      <dt>Provenance</dt><dd>${body.origin}${body.origin === "production"
+        ? " — éligible aux filings réels (G8)" : " — publication réglementaire bloquée (G8)"}</dd>
+      <dt>Audit</dt><dd><code>${body.audit.hash.slice(0, 24)}…</code> (chaîne ${body.audit_chain_intact ? "intègre ✓" : "CORROMPUE"})</dd>
+      <dt>SHA-256 entrée</dt><dd><code>${body.audit.input_sha256.slice(0, 24)}…</code></dd>
+    </dl>
+    ${body.rejects.length ? "<table><tr><th>Ligne</th><th>Motif du rejet</th></tr>" +
+      body.rejects.map((r) => `<tr><td>${r.index + 1}</td><td>${r.reason}</td></tr>`).join("") +
+      "</table>" : ""}`;
+};
+
+if (STATIC) {
+  $("#run").disabled = true;
+  $("#result").innerHTML = '<span class="hint">Version en ligne : démonstration visuelle — ' +
+    "l'ingestion s'exécute en local (<code>python3 -m app</code>).</span>";
+  $("#csv").value = SAMPLE;
+}
+</script>
+</body>
+</html>

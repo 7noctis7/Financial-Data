@@ -23,10 +23,10 @@ class TestOntology(unittest.TestCase):
 
 class TestRegistry(unittest.TestCase):
     def test_all_domain_contracts_are_valid(self):
-        self.assertEqual(len(REGISTRY.products), 5)
+        self.assertEqual(len(REGISTRY.products), 6)
         self.assertEqual(
             {c["domain"] for c in REGISTRY.products.values()},
-            {"trading", "treasury", "risk", "audit", "regulatory"},
+            {"trading", "treasury", "risk", "audit", "regulatory", "client"},
         )
 
     def test_catalog_is_discoverable(self):

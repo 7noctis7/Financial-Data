@@ -20,8 +20,8 @@ from pathlib import Path
 FEATURE_ORDER = ("currency_match", "amount_proximity", "reference_similarity", "same_day")
 
 
-def _vector(features):
-    return [float(features.get(k, 0.0)) for k in FEATURE_ORDER]
+def _vector(features, order):
+    return [float(features.get(k, 0.0)) for k in order]
 
 
 def _cosine(a, b):
@@ -31,8 +31,9 @@ def _cosine(a, b):
 
 
 class FeedbackStore:
-    def __init__(self, path):
+    def __init__(self, path, feature_order=FEATURE_ORDER):
         self.path = Path(path)
+        self.feature_order = feature_order
         self._entries = []
         if self.path.exists():
             with self.path.open(encoding="utf-8") as fh:
@@ -57,9 +58,10 @@ class FeedbackStore:
         """
         if not self._entries:
             return score
-        target = _vector(features)
+        target = _vector(features, self.feature_order)
         neighbours = sorted(
-            ((_cosine(target, _vector(e["features"])), e) for e in self._entries),
+            ((_cosine(target, _vector(e["features"], self.feature_order)), e)
+             for e in self._entries),
             key=lambda pair: -pair[0],
         )[:k]
         relevant = [e for sim, e in neighbours if sim >= min_similarity]
