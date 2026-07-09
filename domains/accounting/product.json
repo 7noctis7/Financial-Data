@@ -1,0 +1,23 @@
+{
+  "urn": "urn:fcc:accounting:general-ledger",
+  "domain": "accounting",
+  "name": "General Ledger",
+  "version": "1.0.0",
+  "owner": "accounting@fcc",
+  "description": "Grand livre en partie double, dérivé des trades réglés et des relevés bancaires. Le cash constaté par la banque est la vérité ; tout flux sans contrepartie passe par le compte d'attente 9990 — c'est le premier signal d'audit. Équilibre débits = crédits par devise contrôlé à chaque clôture.",
+  "output_schema": {
+    "entity": "JournalEntry",
+    "fields": [
+      {"name": "entry_id", "type": "string"},
+      {"name": "reference", "type": "string", "ontology_term": "Settlement"},
+      {"name": "account_code", "type": "string"},
+      {"name": "account_label", "type": "string"},
+      {"name": "side", "type": "string"},
+      {"name": "amount", "type": "money"},
+      {"name": "booked_at", "type": "timestamp"}
+    ]
+  },
+  "slo": {"freshness_seconds": 86400, "max_violation_rate": 0.0, "cooldown_seconds": 3600},
+  "access": {"classification": "internal", "roles": ["treasury-ops", "auditor", "regulatory-officer"]},
+  "sources": ["urn:fcc:trading:executed-trades", "urn:fcc:treasury:cash-positions"]
+}

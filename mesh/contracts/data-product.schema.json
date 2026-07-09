@@ -5,7 +5,7 @@
   "required": ["urn", "domain", "name", "version", "owner", "description", "output_schema", "slo", "access", "sources"],
   "properties": {
     "urn": {"type": "string", "pattern": "^urn:fcc:[a-z-]+:[a-z0-9-]+$"},
-    "domain": {"type": "string", "enum": ["trading", "treasury", "risk", "audit", "regulatory", "client"]},
+    "domain": {"type": "string", "enum": ["trading", "treasury", "risk", "audit", "regulatory", "client", "accounting"]},
     "name": {"type": "string"},
     "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"},
     "owner": {"type": "string"},

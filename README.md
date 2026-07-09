@@ -86,6 +86,7 @@ mesh/                      PLATEFORME SELF-SERVICE (Python stdlib, zéro dépend
   regulatory.py              Publication bloquée hors production (G8)
   pipeline.py                Journée ouvrée de bout en bout
   warehouse.py               Entrepôt Parquet + SQL lecture seule (DuckDB, optionnel)
+  accounting.py              Grand livre en partie double + contrôle de bouclage
   iam.py                     Sécurité contextuelle par classification (G9)
   reconciliation.py          IA de matching scoré (suggestions, décision humaine)
   transformer.py             DataTransformer : ingestion CSV/API → ontologie, audit natif

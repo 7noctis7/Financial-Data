@@ -32,6 +32,7 @@ TABLES = {
     "bank_statements": "bank-statements.json",
     "cash_positions": "cash-positions.json",
     "exposures": "exposures.json",
+    "ledger": "ledger.json",
     "audit_journal": "audit-journal.json",
 }
 
