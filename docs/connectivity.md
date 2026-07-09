@@ -88,7 +88,20 @@ Les corrections humaines optimisent les prédictions futures :
 Version volontairement minimale d'un RLHF local : quand un vrai modèle
 vectoriel s'imposera, seule `FeedbackStore` change (même interface).
 
-## 6. Correspondance avec la structure demandée
+## 6. DataTransformer (`mesh/transformer.py`)
+
+Point d'entrée unique de la donnée tabulaire (CSV/Excel/API) dans un
+Data Product : mapping ontologique **déclaratif** (renommage, lambda de
+transformation, composition `money`), validation contre le contrat,
+rejets explicites, et **piste d'audit injectée au niveau de la classe**
+— chaque ingestion journalise acteur + horodatage + SHA-256 de l'entrée
+dans la chaîne (G3) ; impossible d'ingérer sans tracer. La couche de
+simulation (le générateur `sim/`, notre « FactIQ » interne : données
+synthétiques bancaires réalistes et déterministes) s'injecte par
+`from_source(...)` — même chemin, même audit, mêmes validations que la
+production. Mapping des rapports aux normes : `docs/regulatory-mapping.md`.
+
+## 7. Correspondance avec la structure demandée
 
 | Demandé | Ici | Pourquoi |
 |---|---|---|
