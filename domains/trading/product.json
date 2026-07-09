@@ -1,0 +1,22 @@
+{
+  "urn": "urn:fcc:trading:executed-trades",
+  "domain": "trading",
+  "name": "Executed Trades",
+  "version": "1.0.0",
+  "owner": "front-office@fcc",
+  "description": "Flux des trades exécutés, source de vérité du cycle de vie des trades. Une correction est une contre-passation, jamais une mutation.",
+  "output_schema": {
+    "entity": "Trade",
+    "fields": [
+      {"name": "trade_id", "type": "string"},
+      {"name": "instrument_id", "type": "string", "ontology_term": "Instrument"},
+      {"name": "counterparty_lei", "type": "string", "ontology_term": "Counterparty"},
+      {"name": "notional", "type": "money"},
+      {"name": "status", "type": "string"},
+      {"name": "executed_at", "type": "timestamp"}
+    ]
+  },
+  "slo": {"freshness_seconds": 300, "max_violation_rate": 0.01, "cooldown_seconds": 600},
+  "access": {"classification": "restricted", "roles": ["trader", "risk-analyst", "treasury-ops", "auditor"]},
+  "sources": []
+}
