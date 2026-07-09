@@ -108,6 +108,8 @@ app/                       APPLICATION (locale + export en ligne)
   data.py                    Agrégations → payload du dashboard
   static/index.html          Dashboard autonome (clair/sombre, SVG natif)
   static/explorer.html       Explorateur : filtres sans SQL + éditeur SQL
+  static/reports.html        Rapports certifiés : génération + preuve depuis le navigateur
+  static/recon.html          Réconciliation IA : suggestions scorées, accepter/rejeter
   __main__.py                Serveur local :8787 | export statique → dist/
 tests/                     Tests unitaires + bout en bout
 .github/workflows/pages.yml  CI : tests puis publication GitHub Pages
