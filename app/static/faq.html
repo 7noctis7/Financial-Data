@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FAQ — Financial Command Center</title>
+<style>
+  :root {
+    --surface-1: #fcfcfb; --page: #f9f9f7;
+    --ink-1: #0b0b0b; --ink-2: #52514e; --ink-muted: #898781;
+    --grid: #e1e0d9; --border: rgba(11,11,11,0.10);
+    --accent: #2a78d6; --accent-wash: rgba(42,120,214,0.10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --surface-1: #1a1a19; --page: #0d0d0d;
+      --ink-1: #ffffff; --ink-2: #c3c2b7; --ink-muted: #898781;
+      --grid: #2c2c2a; --border: rgba(255,255,255,0.10);
+      --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16);
+    }
+  }
+  :root[data-theme="dark"] {
+    --surface-1: #1a1a19; --page: #0d0d0d;
+    --ink-1: #ffffff; --ink-2: #c3c2b7; --ink-muted: #898781;
+    --grid: #2c2c2a; --border: rgba(255,255,255,0.10);
+    --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink-1);
+         font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 24px 20px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 4px; }
+  h1 { font-size: 20px; font-weight: 650; margin: 0; }
+  nav { display: flex; gap: 6px; flex-wrap: wrap; }
+  nav a, .theme-btn {
+    color: var(--ink-2); text-decoration: none; font-size: 13px; font-weight: 600;
+    padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px;
+    background: var(--surface-1); cursor: pointer; font-family: inherit;
+  }
+  nav a:hover, .theme-btn:hover { background: var(--accent-wash); }
+  nav a.current { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .sub { color: var(--ink-2); margin: 0 0 18px; }
+  details {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 18px; margin-bottom: 10px;
+  }
+  summary { font-weight: 650; cursor: pointer; }
+  summary:hover { color: var(--accent); }
+  details p, details li { color: var(--ink-2); }
+  code { font-size: 12px; background: var(--accent-wash); padding: 1px 5px; border-radius: 4px; }
+  h2 { font-size: 14px; font-weight: 650; color: var(--ink-muted);
+       text-transform: uppercase; letter-spacing: .04em; margin: 22px 4px 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>FAQ</h1>
+    <nav>
+      <a href="aml.html">1·KYC/AML</a><a href="ingest.html">2·Ingestion</a><a href="index.html">3·Marchés</a><a href="recon.html">4·Réconciliation</a><a href="accounting.html">5·Comptabilité</a><a href="explorer.html">6·Explorateur</a><a href="reports.html">7·Rapports</a><a href="faq.html" class="current">FAQ</a>
+    </nav>
+    <span style="flex:1"></span>
+    <button class="theme-btn" id="theme"></button>
+  </header>
+  <p class="sub">Le fonctionnement du Financial Command Center, expliqué factuellement.
+  La navigation suit le cycle de vie d'une banque : entrée en relation (KYC) → entrée des
+  opérations (Ingestion) → activité de marché → post-marché (Réconciliation) → Comptabilité →
+  analyse (Explorateur) → restitution (Rapports).</p>
+
+  <h2>Le projet</h2>
+  <details open><summary>Qu'est-ce que ce système ?</summary>
+    <p>Un Data Mesh bancaire : 7 « Data Products » autonomes (trading, trésorerie, risque,
+    comptabilité, client/KYC, audit, regulatory), chacun sous contrat versionné, gouvernés par
+    10 règles appliquées par le code (G1–G10, voir <code>docs/governance.md</code>). Tout ce que
+    tu vois sur ce site est calculé depuis ces produits — jamais saisi.</p></details>
+  <details><summary>Les données sont-elles réelles ?</summary>
+    <p>Non : la provenance actuelle est <b>simulée</b> (générateur déterministe, réaliste pour une
+    salle de marchés). La règle G8 rend cette frontière structurelle : la provenance est portée
+    par chaque lot, propagée à tout dérivé, et <b>aucune publication réglementaire réelle n'est
+    possible</b> depuis du simulé (seuls des DRYRUN sortent). Brancher des données réelles = une
+    source <code>origin=production</code>, rien d'autre ne change.</p></details>
+
+  <h2>Entrées</h2>
+  <details><summary>Comment entrer mes propres données ?</summary>
+    <p>Page <b>Ingestion</b> : colle un CSV ou choisis un fichier. Le DataTransformer mappe vers
+    l'ontologie, valide contre le contrat, motive chaque rejet, et scelle le SHA-256 de l'entrée
+    dans le journal d'audit. Pour garantir l'exhaustivité, fournis les totaux de contrôle
+    (<code>control_totals</code> : nombre de lignes + sommes par devise) — un écart fait refuser
+    le fichier en totalité.</p></details>
+  <details><summary>Pourquoi une notation KYC est-elle low / medium / high ?</summary>
+    <p>La notation est dérivée de <b>règles déclaratives</b>, jamais arbitraire :
+    <b>high</b> = PEP déclaré ou juridiction à vigilance renforcée ; <b>medium</b> = établissement
+    non bancaire (surveillance prudentielle moindre) ; <b>low</b> = banque régulée en juridiction
+    standard. La justification exacte de chaque dossier est affichée sous son nom sur la page
+    KYC/AML. <b>PEP</b> = personne politiquement exposée (obligations LBC-FT, vigilance
+    renforcée).</p></details>
+
+  <h2>Contrôles &amp; confiance</h2>
+  <details><summary>Comment être sûr qu'aucune donnée ne se perd ?</summary>
+    <p>Cinq maillons contrôlés par le code (<code>docs/data-quality-trust.md</code>) : totaux de
+    contrôle à l'entrée ; partie double comme détecteur (tout flux inexpliqué atterrit au compte
+    d'attente 9990, affiché en rouge) ; six assertions d'audit par produit et par jour ; contrôles
+    de restitution bloquants sur chaque rapport ; preuve re-vérifiable (journal chaîné SHA-256).</p></details>
+  <details><summary>L'IA peut-elle modifier mes données ?</summary>
+    <p>Non. Les IA du système (réconciliation, pré-diagnostic AML) <b>proposent</b> des scores
+    explicables avec leur lineage (G6) ; seule une décision <b>humaine</b> (Accepter/Rejeter,
+    Escalader/Classer) change un état — et elle est journalisée puis apprise par la boucle de
+    feedback.</p></details>
+  <details><summary>Pourquoi un export m'est-il refusé ?</summary>
+    <p>Trois causes, toutes tracées : habilitation insuffisante (G9 — ton rôle ne couvre pas la
+    classification de la donnée) ; assertion d'audit manquante ou non certifiée (G10) ; contrôle
+    de restitution en échec (totaux qui ne bouclent pas). Le refus exact s'affiche et se
+    journalise.</p></details>
+
+  <h2>Sorties</h2>
+  <details><summary>Comment générer un rapport certifié ?</summary>
+    <p>Page <b>Rapports</b> : choisis un template (EMIR, MiFID II, FINREP F 01.01 FR/EN, bilan,
+    trésorerie…), un format (CSV/XLSX/PDF) et un rôle. Chaque livrable embarque son Annexe de
+    Preuve : norme source, horodatage UTC, demandeur, SHA-256, assertions, contrôles. Le bilan et
+    le PnL s'exportent aussi depuis la page <b>Comptabilité</b>.</p></details>
+  <details><summary>Comment vérifier un chiffre six mois plus tard ?</summary>
+    <p>Du document au hash (Annexe de Preuve), du hash à l'entrée de journal
+    (<code>verify_chain</code>), de l'entrée à l'assertion, de l'assertion aux données sources —
+    chaque maillon est re-calculable sans intervention humaine.</p></details>
+  <details><summary>Comment lancer l'application ?</summary>
+    <p>En local : <code>git clone</code>, puis <code>python3 -m app</code> →
+    <code>localhost:8787</code> (ajoute <code>pip3 install duckdb</code> pour l'explorateur SQL).
+    En ligne : le site est republié automatiquement sur GitHub Pages à chaque merge sur
+    <code>main</code>.</p></details>
+</div>
+<script>
+"use strict";
+(() => {
+  const THEMES = ["auto", "light", "dark"], LABELS = { auto: "◐ Auto", light: "☀ Clair", dark: "● Sombre" };
+  const apply = (t) => {
+    if (t === "auto") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", t);
+    const b = document.querySelector("#theme"); if (b) b.textContent = LABELS[t];
+  };
+  let theme = localStorage.getItem("fcc-theme") || "auto";
+  apply(theme);
+  addEventListener("DOMContentLoaded", () => { apply(theme);
+    document.querySelector("#theme").onclick = () => {
+      theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+      localStorage.setItem("fcc-theme", theme); apply(theme); };
+  });
+})();
+</script>
+</body>
+</html>

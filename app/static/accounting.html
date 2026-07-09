@@ -72,6 +72,7 @@
   .chip.debit { color: var(--good-text); } .chip.credit { color: var(--accent); }
   .note { color: var(--ink-muted); font-size: 12px; margin-top: 12px; }
   code { font-size: 12px; }
+  nav a.current, a.badge.current { background: var(--accent); color: #fff !important; border-color: var(--accent); }
 </style>
 </head>
 <body>
@@ -79,11 +80,7 @@
 <div class="wrap">
   <header>
     <h1>Comptabilité</h1>
-    <nav>
-      <a href="index.html">Dashboard</a><a href="explorer.html">Explorateur</a>
-      <a href="reports.html">Rapports</a><a href="recon.html">Réconciliation</a>
-      <a href="aml.html">KYC/AML</a><a href="ingest.html">Ingestion</a>
-    </nav>
+    <nav><a href="aml.html">1·KYC/AML</a><a href="ingest.html">2·Ingestion</a><a href="index.html">3·Marchés</a><a href="recon.html">4·Réconciliation</a><a href="accounting.html" class="current">5·Comptabilité</a><a href="explorer.html">6·Explorateur</a><a href="reports.html">7·Rapports</a><a href="faq.html">FAQ</a></nav>
     <span style="flex:1"></span>
     <button class="theme-btn" id="theme"></button>
   </header>
@@ -92,6 +89,13 @@
   <b>compte d'attente 9990</b> et s'affiche en rouge — c'est le premier signal d'audit.
   Le contrôle de bouclage vérifie débits = crédits par devise à chaque clôture.</p>
   <div class="kpis" id="kpis"></div>
+  <div class="card" id="exports" style="margin-bottom:12px" hidden>
+    <h2>Exports certifiés</h2>
+    <p class="hint">Bilan économique et compte de résultat, générés par le moteur de
+      certification (Annexe de Preuve + contrôles de restitution inclus)</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap" id="export-buttons"></div>
+    <p class="note" id="export-result"></p>
+  </div>
   <div class="cols">
     <div class="card">
       <h2>Balance générale</h2>
@@ -173,8 +177,28 @@ function render(data) {
     + `(provenance ${data.origin}). Requêtable en SQL : table ledger de l'explorateur.`;
 }
 
+async function exportReport(template, fmt) {
+  $("#export-result").textContent = "Génération en cours…";
+  const res = await fetch("/api/reports/generate", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ template, format: fmt, role: "treasury-ops",
+                           requester: "webapp",
+                           date: new Date().toISOString().slice(0, 10) }) });
+  const body = await res.json();
+  if (!res.ok) { $("#export-result").textContent = "Refusé : " + body.error; return; }
+  $("#export-result").innerHTML =
+    `Généré ✓ — contrôles ${body.controls.length ? body.controls.filter(c => c.ok).length + "/" + body.controls.length + " OK — " : ""}` +
+    `<a href="${body.download}" download style="color:var(--accent);font-weight:650">⬇ Télécharger ${body.path.split("/").pop()}</a>`;
+}
+
 (async () => {
   if (STATIC) { render(config); return; }
+  const buttons = [["bilan_economique", "Bilan"], ["pnl_v1", "PnL"]];
+  $("#exports").hidden = false;
+  $("#export-buttons").innerHTML = buttons.map(([t, label]) =>
+    ["pdf", "xlsx"].map((f) =>
+      `<button class="theme-btn" onclick="exportReport('${t}','${f}')">${label} — ${f.toUpperCase()}</button>`
+    ).join("")).join("");
   const res = await fetch("/api/accounting");
   const data = await res.json();
   if (!res.ok) { $("#note").textContent = data.error; return; }

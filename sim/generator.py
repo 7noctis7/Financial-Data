@@ -103,20 +103,51 @@ COUNTERPARTY_NAMES = {
 
 # Pays de résidence possibles ; les derniers sont à vigilance renforcée
 RESIDENCE_COUNTRIES = ["FR", "DE", "GB", "US", "JP", "CH", "LU", "KY", "PA"]
-RISK_RATINGS = [("low", 0.65), ("medium", 0.25), ("high", 0.10)]
+ENHANCED_DILIGENCE_COUNTRIES = {"KY", "PA"}
+
+
+def kyc_rating(client_type, residence_country, pep):
+    """Notation KYC dérivée de RÈGLES déclaratives — chaque notation est
+    justifiable par ses facteurs, jamais tirée au sort.
+
+    Règles (v1, à réviser par la conformité) :
+    - PEP déclaré  OU  juridiction à vigilance renforcée  → high
+    - établissement non bancaire (fonds, société de gestion, trade
+      finance : surveillance prudentielle moindre)          → medium
+    - banque régulée en juridiction standard                → low
+    """
+    factors = []
+    if pep:
+        factors.append("statut PEP déclaré à l'entrée en relation "
+                       "(personne politiquement exposée — vigilance renforcée LBC-FT)")
+    if residence_country in ENHANCED_DILIGENCE_COUNTRIES:
+        factors.append(f"résidence {residence_country} : juridiction à vigilance "
+                       "renforcée (liste interne alignée GAFI)")
+    if pep or residence_country in ENHANCED_DILIGENCE_COUNTRIES:
+        return "high", " ; ".join(factors)
+    if client_type != "bank":
+        factors.append("établissement non bancaire (fonds / société de gestion / "
+                       "trade finance) : surveillance prudentielle moindre qu'une banque")
+        return "medium", " ; ".join(factors)
+    factors.append("banque régulée (surveillance prudentielle) en juridiction standard")
+    return "low", " ; ".join(factors)
 
 
 class SimulatedClientSource(DataSource):
-    """Dossiers KYC simulés des contreparties (+ fonds sans activité)."""
+    """Dossiers KYC simulés des contreparties (+ fonds sans activité).
+
+    Seuls les ATTRIBUTS (résidence, PEP) sont simulés ; la notation est
+    DÉRIVÉE par `kyc_rating` — règles déclaratives, jamais d'aléa.
+    """
 
     origin = SIMULATED
     product_urn = "urn:fcc:client:kyc-profiles"
 
     EXTRA_CLIENTS = [
-        ("549300H5DJ2KWQZM4V90", "Helvetia Capital SA"),
-        ("969500FX2K3AB8CD1E22", "Fonds Lumière SICAV"),
-        ("529900T8BM49AURSDO55", "Nordwind Asset GmbH"),
-        ("213800ZBKL9BYSLXAB12", "Atlas Trade Finance Ltd"),
+        ("549300H5DJ2KWQZM4V90", "Helvetia Capital SA", "asset-manager"),
+        ("969500FX2K3AB8CD1E22", "Fonds Lumière SICAV", "fund"),
+        ("529900T8BM49AURSDO55", "Nordwind Asset GmbH", "asset-manager"),
+        ("213800ZBKL9BYSLXAB12", "Atlas Trade Finance Ltd", "trade-finance"),
     ]
 
     def __init__(self, seed=42):
@@ -125,22 +156,21 @@ class SimulatedClientSource(DataSource):
     def fetch(self, business_date):
         rng = random.Random(f"{self.seed}:kyc:{business_date[:7]}")  # stable au mois
         records = []
-        clients = list(COUNTERPARTY_NAMES.items()) + self.EXTRA_CLIENTS
-        for i, (lei, name) in enumerate(clients):
-            x, cumulative, rating = rng.random(), 0.0, "low"
-            for r, w in RISK_RATINGS:
-                cumulative += w
-                if x < cumulative:
-                    rating = r
-                    break
+        clients = ([(lei, name, "bank") for lei, name in COUNTERPARTY_NAMES.items()]
+                   + self.EXTRA_CLIENTS)
+        for i, (lei, name, client_type) in enumerate(clients):
+            pep = rng.random() < 0.10
+            residence = rng.choice(RESIDENCE_COUNTRIES)
+            rating, rationale = kyc_rating(client_type, residence, pep)
             review_days = rng.randint(10, 360)
             records.append({
                 "client_id": f"CLI-{i:04d}",
                 "lei": lei,
                 "name": name,
                 "risk_rating": rating,
-                "pep": rng.random() < 0.10,
-                "residence_country": rng.choice(RESIDENCE_COUNTRIES),
+                "rating_rationale": rationale,
+                "pep": pep,
+                "residence_country": residence,
                 "last_review": f"{business_date[:4]}-01-01T00:00:00Z"
                                if review_days > 300 else f"{business_date}T00:00:00Z",
             })

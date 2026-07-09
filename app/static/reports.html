@@ -67,6 +67,7 @@
   .kv dd { margin: 0; word-break: break-all; font-variant-numeric: tabular-nums; }
   .dl { display: inline-block; margin-top: 10px; font-weight: 650; color: var(--accent); }
   code { font-size: 12px; }
+  nav a.current, a.badge.current { background: var(--accent); color: #fff !important; border-color: var(--accent); }
 </style>
 </head>
 <body>
@@ -74,14 +75,7 @@
 <div class="wrap">
   <header>
     <h1>Rapports certifiés</h1>
-    <nav>
-      <a href="index.html">Dashboard</a>
-      <a href="explorer.html">Explorateur</a>
-      <a href="recon.html">Réconciliation</a>
-      <a href="aml.html">KYC/AML</a>
-      <a href="accounting.html">Comptabilité</a>
-      <a href="ingest.html">Ingestion</a>
-    </nav>
+    <nav><a href="aml.html">1·KYC/AML</a><a href="ingest.html">2·Ingestion</a><a href="index.html">3·Marchés</a><a href="recon.html">4·Réconciliation</a><a href="accounting.html">5·Comptabilité</a><a href="explorer.html">6·Explorateur</a><a href="reports.html" class="current">7·Rapports</a><a href="faq.html">FAQ</a></nav>
     <span style="flex:1"></span>
     <button class="theme-btn" id="theme"></button>
   </header>

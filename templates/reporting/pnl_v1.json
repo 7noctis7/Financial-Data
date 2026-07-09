@@ -1,0 +1,15 @@
+{
+  "name": "Compte de résultat v1 (trame PnL.xls)",
+  "department": "treasury",
+  "norm_ref": "Trame interne templates/reporting/Templates:Accounting/PnL.xls (Anafi) — périmètre v1 : aucun flux de revenus au grand livre, état déclaré vide",
+  "classification": "internal",
+  "roles": ["treasury-ops", "auditor", "regulatory-officer"],
+  "title": "Compte de résultat — soldes intermédiaires de gestion (v1)",
+  "dataset": "pnl_v1",
+  "columns": [
+    {"key": "poste", "label": "Poste"},
+    {"key": "montant_eur", "label": "Montant (EUR)"},
+    {"key": "source", "label": "Dérivation / justification"}
+  ],
+  "required_assertions": ["existence", "completeness", "presentation"]
+}

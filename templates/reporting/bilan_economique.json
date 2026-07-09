@@ -1,0 +1,23 @@
+{
+  "name": "Bilan économique (trame BalanceSheet.xls)",
+  "department": "treasury",
+  "norm_ref": "Trame interne templates/reporting/Templates:Accounting/BalanceSheet.xls — dérivé du grand livre en partie double",
+  "classification": "internal",
+  "roles": ["treasury-ops", "auditor", "regulatory-officer"],
+  "title": "Bilan économique — présentation simplifiée",
+  "dataset": "balance_sheet_econ",
+  "columns": [
+    {"key": "poste", "label": "Poste"},
+    {"key": "montant_eur", "label": "Montant (EUR)"},
+    {"key": "source", "label": "Dérivation (grand livre)"}
+  ],
+  "required_assertions": ["existence", "completeness", "valuation", "accuracy"],
+  "controls": [
+    {"name": "Capitaux investis (C+D) = Actif économique",
+     "type": "sum_equals", "key": "k", "amount_key": "montant_eur",
+     "keys": ["CAP_INV"], "expected_context": "actif_economique"},
+    {"name": "Actif économique = Immobilisations + BFR HE",
+     "type": "recompute_total", "key": "k", "amount_key": "montant_eur",
+     "total": "ACTIF_ECO", "sum_of": ["IMMO", "BFRHE"]}
+  ]
+}

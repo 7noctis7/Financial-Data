@@ -95,7 +95,8 @@ class ReportGenerator:
         return json.loads(path.read_text(encoding="utf-8"))
 
     def generate(self, template_name, rows, assertions, requester, role,
-                 fmt="csv", timestamp=None, business_date=None, control_context=None):
+                 fmt="csv", timestamp=None, business_date=None,
+                 control_context=None, summary_lines=None):
         """Génère le livrable ; retourne ses métadonnées de certification."""
         template = self._template(template_name)
         resource = f"urn:fcc:{template['department']}:report:{template_name}"
@@ -139,7 +140,8 @@ class ReportGenerator:
         # 3. Annexe de Preuve
         origins = {assertions[c]["origin"] for c in template["required_assertions"]}
         content_hash = hashlib.sha256(json.dumps(
-            {"columns": template["columns"], "rows": rows},
+            {"columns": template["columns"], "rows": rows,
+             "summary": summary_lines or []},
             sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")).hexdigest()
         annex = [
             f"Rapport : {template['name']} ({template['department']})",
@@ -158,7 +160,8 @@ class ReportGenerator:
             for c in controls
         ] if controls else [])
 
-        content = RENDERERS[fmt](template["title"], template["columns"], rows, annex)
+        content = RENDERERS[fmt](template["title"], template["columns"], rows, annex,
+                                 summary_lines=summary_lines)
         file_hash = hashlib.sha256(content).hexdigest()
 
         # 4. La génération entre dans la chaîne d'audit
@@ -210,6 +213,7 @@ class ReportGenerator:
                     "status": t["status"], "executed_at": _fr(t["executed_at"])}
 
         dataset = template["dataset"]
+        control_context, summary = None, []
         if dataset == "exposures":
             batch = derive_exposures(trades, business_date)
             rows = [{"counterparty_lei": r["counterparty_lei"],
@@ -217,6 +221,14 @@ class ReportGenerator:
                      "limit_utilisation": r["limit_utilisation"],
                      "computed_at": _fr(r["computed_at"])} for r in batch["records"]]
             urn = "urn:fcc:risk:exposures"
+            total = round(sum(r["exposure_eur"] for r in rows), 2)
+            peak = max(rows, key=lambda r: r["limit_utilisation"], default=None)
+            summary = [f"Synthese : {len(rows)} contreparties ; exposition brute "
+                       f"totale {total:,.2f} EUR.".replace(",", " ")]
+            if peak:
+                summary.append(
+                    f"Utilisation maximale de limite : {peak['limit_utilisation']:.1%} "
+                    f"(LEI {peak['counterparty_lei']}).")
         elif dataset == "cash_positions":
             statements = simulate_bank_statements(trades, seed=seed)
             batch = derive_cash_positions(trades, statements, business_date)
@@ -226,31 +238,41 @@ class ReportGenerator:
                      "reconciled": "oui" if r["reconciled"] else "non",
                      "value_date": _fr(r["value_date"])} for r in batch["records"]]
             urn = "urn:fcc:treasury:cash-positions"
-        elif dataset == "derivative_trades":  # EMIR : IRS + change à terme
+            ok = sum(1 for r in rows if r["reconciled"] == "oui")
+            summary = [f"Synthese : {len(rows)} comptes nostro ; {ok}/{len(rows)} "
+                       "reconcilies trades vs releves bancaires."]
+        elif dataset in ("derivative_trades", "transactions"):
             batch = trades
+            keep = (lambda t: asset_class.get(t["instrument_id"]) in ("irs", "fx_forward")
+                    ) if dataset == "derivative_trades" else (lambda t: True)
             rows = [_trade_row(t) for t in trades["records"]
-                    if asset_class.get(t["instrument_id"]) in ("irs", "fx_forward")
-                    and t["status"] != "cancelled"]
+                    if t["status"] != "cancelled" and keep(t)]
             urn = "urn:fcc:trading:executed-trades"
-        elif dataset == "transactions":  # MiFID II : toutes les exécutions
-            batch = trades
-            rows = [_trade_row(t) for t in trades["records"]
-                    if t["status"] != "cancelled"]
-            urn = "urn:fcc:trading:executed-trades"
+            by_ccy = {}
+            for r in rows:
+                by_ccy[r["currency"]] = by_ccy.get(r["currency"], 0.0) + r["notional"]
+            summary = [f"Synthese : {len(rows)} transactions declarees ; notionnel par "
+                       "devise : " + " ; ".join(
+                           f"{v:,.0f} {c}".replace(",", " ")
+                           for c, v in sorted(by_ccy.items())) + "."]
         elif dataset == "finrep_f0101":
             batch, rows, control_context = _finrep_f0101(
                 trades, business_date, seed, template.get("lang", "fr"))
             urn = "urn:fcc:accounting:general-ledger"
-            assertions = demo_assertions(self.audit_log, urn, business_date,
-                                         batch["origin"])
-            return self.generate(template_name, rows, assertions, requester, role,
-                                 fmt=fmt, business_date=business_date,
-                                 control_context=control_context)
+            total = next(r["amount_eur"] for r in rows if r["row_ref"] == "380")
+            summary = [f"Synthese : total actifs {total:,.2f} EUR ; bouclage "
+                       "bilan/grand livre verifie au centime (voir annexe)."
+                       .replace(",", " ")]
+        elif dataset in ("balance_sheet_econ", "pnl_v1"):
+            batch, rows, control_context, summary = _accounting_statement(
+                trades, business_date, seed, dataset)
+            urn = "urn:fcc:accounting:general-ledger"
         else:
             raise ReportError(f"dataset inconnu dans le template : {dataset!r}")
         assertions = demo_assertions(self.audit_log, urn, business_date, batch["origin"])
         return self.generate(template_name, rows, assertions, requester, role,
-                             fmt=fmt, business_date=business_date)
+                             fmt=fmt, business_date=business_date,
+                             control_context=control_context, summary_lines=summary)
 
 
 # Libellés F 01.01 (Annexe III, Règlement d'exécution (UE) 2021/451)
@@ -314,6 +336,79 @@ def _finrep_f0101(trades, business_date, seed, lang):
     # capitaux propres du grand livre (solde créditeur du compte 5000).
     control_context = {"ledger_equity_eur": round(-balances.get("5000", 0.0), 2)}
     return ledger, rows, control_context
+
+
+def _ledger_balances_eur(trades, business_date, seed):
+    from mesh.accounting import derive_ledger, trial_balance
+    from mesh.derivations import FX_TO_EUR
+    from sim.generator import simulate_bank_statements
+    statements = simulate_bank_statements(trades, seed=seed)
+    ledger = derive_ledger(trades, statements, business_date)
+    balances = {}
+    for account in trial_balance(ledger)["accounts"]:
+        eur = account["balance"] * FX_TO_EUR[account["currency"]]
+        balances[account["account_code"]] = balances.get(account["account_code"], 0.0) + eur
+    return ledger, balances
+
+
+def _accounting_statement(trades, business_date, seed, dataset):
+    """Bilan économique / PnL v1 — chaque poste dérivé du grand livre,
+    postes hors périmètre à zéro et déclarés (jamais estimés)."""
+    ledger, balances = _ledger_balances_eur(trades, business_date, seed)
+    disponible = round(sum(balances.get(c, 0.0) for c in ("1010", "1011", "1012")), 2)
+    placements = round(balances.get("3010", 0.0) + balances.get("3020", 0.0)
+                       + balances.get("3021", 0.0), 2)
+    attente = round(balances.get("9990", 0.0), 2)
+    equity = round(-balances.get("5000", 0.0), 2)
+    if dataset == "balance_sheet_econ":
+        endettement_net = round(0.0 - placements - disponible, 2)
+        actif_eco = round(0.0 + attente, 2)  # immobilisations 0 + BFR HE
+        rows = [
+            {"k": "IMMO", "poste": "Immobilisations nettes (A)", "montant_eur": 0.0,
+             "source": "hors perimetre v1 (aucun actif immobilise au grand livre)"},
+            {"k": "BFRHE", "poste": "Besoin en fonds de roulement hors exploitation",
+             "montant_eur": attente, "source": "solde 9990 Compte d'attente"},
+            {"k": "ACTIF_ECO", "poste": "Actif economique (A+B)", "montant_eur": actif_eco,
+             "source": "somme des lignes ci-dessus"},
+            {"k": "CP", "poste": "Capitaux propres (C)", "montant_eur": equity,
+             "source": "solde crediteur 5000"},
+            {"k": "PLACEMENTS", "poste": "(-) Placements financiers",
+             "montant_eur": -placements, "source": "soldes 3010+3020+3021"},
+            {"k": "DISPO", "poste": "(-) Disponible", "montant_eur": -disponible,
+             "source": "soldes nostro 1010/1011/1012"},
+            {"k": "DETTE_NETTE", "poste": "Endettement net (D)",
+             "montant_eur": endettement_net,
+             "source": "dettes financieres (0) - placements - disponible"},
+            {"k": "CAP_INV", "poste": "Capitaux investis (C+D) = Actif economique",
+             "montant_eur": round(equity + endettement_net, 2),
+             "source": "controle de bouclage"},
+        ]
+        context = {"actif_economique": actif_eco}
+        summary = [
+            f"Synthese : tresorerie disponible {disponible:,.2f} EUR ; placements "
+            f"financiers {placements:,.2f} EUR ; capitaux propres {equity:,.2f} EUR."
+            .replace(",", " "),
+            "Controle : Capitaux investis (C+D) = Actif economique, au centime.",
+        ]
+        if attente:
+            summary.append(f"Point d'attention : compte d'attente {attente:,.2f} EUR "
+                           "a apurer (flux inexpliques).".replace(",", " "))
+        return ledger, rows, context, summary
+    # PnL v1 : aucun flux de revenus au grand livre — etat honnete
+    rows = [
+        {"k": "CA", "poste": "CHIFFRE D'AFFAIRES", "montant_eur": 0.0,
+         "source": "hors perimetre v1 - domaine fees:revenues requis"},
+        {"k": "CHARGES", "poste": "Charges d'exploitation", "montant_eur": 0.0,
+         "source": "hors perimetre v1"},
+        {"k": "EBE", "poste": "EXCEDENT BRUT D'EXPLOITATION", "montant_eur": 0.0,
+         "source": "= CA - charges (tous deux hors perimetre v1)"},
+    ]
+    summary = [
+        "Etat volontairement vide : le grand livre v1 n'enregistre aucun flux de",
+        "revenus ou de charges (perimetre salle de marches, notionnels uniquement).",
+        "Le domaine Frais & Commissions (fees:revenues) alimentera cet etat.",
+    ]
+    return ledger, rows, None, summary
 
 
 def demo_assertions(log, product_urn, business_date, origin,

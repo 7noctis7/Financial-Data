@@ -78,6 +78,7 @@
   .decided.esc { color: var(--critical); } .decided.dis { color: var(--good); }
   .note { color: var(--ink-muted); font-size: 12px; margin-top: 12px; }
   code { font-size: 12px; }
+  nav a.current, a.badge.current { background: var(--accent); color: #fff !important; border-color: var(--accent); }
 </style>
 </head>
 <body>
@@ -85,11 +86,7 @@
 <div class="wrap">
   <header>
     <h1>KYC / AML</h1>
-    <nav>
-      <a href="index.html">Dashboard</a><a href="explorer.html">Explorateur</a>
-      <a href="reports.html">Rapports</a><a href="recon.html">Réconciliation</a>
-      <a href="accounting.html">Comptabilité</a><a href="ingest.html">Ingestion</a>
-    </nav>
+    <nav><a href="aml.html" class="current">1·KYC/AML</a><a href="ingest.html">2·Ingestion</a><a href="index.html">3·Marchés</a><a href="recon.html">4·Réconciliation</a><a href="accounting.html">5·Comptabilité</a><a href="explorer.html">6·Explorateur</a><a href="reports.html">7·Rapports</a><a href="faq.html">FAQ</a></nav>
     <span style="flex:1"></span>
     <button class="theme-btn" id="theme"></button>
   </header>
@@ -102,6 +99,14 @@
     <div class="card">
       <h2>Dossiers KYC</h2>
       <p class="hint">Produit <code>client:kyc-profiles</code> — revue annuelle</p>
+      <p class="hint" style="border:1px solid var(--border);border-radius:8px;padding:8px 10px">
+        <b>Méthodologie de notation</b> (règles déclaratives, aucune notation arbitraire) :
+        <b>high</b> = PEP déclaré OU juridiction à vigilance renforcée (liste interne alignée GAFI) ·
+        <b>medium</b> = établissement non bancaire (fonds, société de gestion, trade finance :
+        surveillance prudentielle moindre) · <b>low</b> = banque régulée en juridiction standard ·
+        <b>PEP</b> = personne politiquement exposée au sens des obligations LBC-FT, déclarée à
+        l'entrée en relation ⇒ vigilance renforcée obligatoire. La justification exacte de chaque
+        dossier est affichée sous son nom.</p>
       <table id="profiles"></table>
     </div>
     <div class="card">
@@ -156,7 +161,8 @@ function render(data) {
   $("#profiles").innerHTML =
     "<tr><th>Client</th><th>Notation</th><th>Drapeaux</th><th>Résidence</th></tr>" +
     data.profiles.map((p) => `<tr>
-      <td>${p.name}<br><span class="why">${p.client_id} · LEI ${p.lei.slice(0, 8)}…</span></td>
+      <td>${p.name}<br><span class="why">${p.client_id} · LEI ${p.lei.slice(0, 8)}…</span>
+        ${p.rating_rationale ? `<br><span class="why">↳ ${p.rating_rationale}</span>` : ""}</td>
       <td><span class="chip ${p.risk_rating}">${p.risk_rating}</span></td>
       <td>${p.pep ? '<span class="chip pep">PEP</span>' : ""}</td>
       <td>${p.residence_country}</td></tr>`).join("");

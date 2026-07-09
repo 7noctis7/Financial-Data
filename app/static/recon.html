@@ -72,6 +72,7 @@
   .note { color: var(--ink-muted); font-size: 12px; margin-top: 12px; }
   code { font-size: 12px; }
   input:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  nav a.current, a.badge.current { background: var(--accent); color: #fff !important; border-color: var(--accent); }
 </style>
 </head>
 <body>
@@ -79,14 +80,7 @@
 <div class="wrap">
   <header>
     <h1>Réconciliation IA</h1>
-    <nav>
-      <a href="index.html">Dashboard</a>
-      <a href="explorer.html">Explorateur</a>
-      <a href="reports.html">Rapports</a>
-      <a href="aml.html">KYC/AML</a>
-      <a href="accounting.html">Comptabilité</a>
-      <a href="ingest.html">Ingestion</a>
-    </nav>
+    <nav><a href="aml.html">1·KYC/AML</a><a href="ingest.html">2·Ingestion</a><a href="index.html">3·Marchés</a><a href="recon.html" class="current">4·Réconciliation</a><a href="accounting.html">5·Comptabilité</a><a href="explorer.html">6·Explorateur</a><a href="reports.html">7·Rapports</a><a href="faq.html">FAQ</a></nav>
     <span style="flex:1"></span>
     <button class="theme-btn" id="theme"></button>
   </header>

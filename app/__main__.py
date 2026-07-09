@@ -318,6 +318,8 @@ def export(business_date, seed=42, n_trades=250):
     _export_embedded("accounting.html",
                      '<script id="fcc-accounting-config" type="application/json">null</script>',
                      _accounting_payload(business_date, seed))
+    shutil.copy(STATIC_DIR / "faq.html", DIST_DIR / "faq.html")
+    print("export faq.html")
 
 
 def _export_reports(business_date):
