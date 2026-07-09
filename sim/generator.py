@@ -92,12 +92,14 @@ class SimulatedTradingSource(DataSource):
                           f"{business_date}T18:00:00Z", records)
 
 
-def simulate_bank_statements(trades_batch, seed=42, drop_rate=0.005):
+def simulate_bank_statements(trades_batch, seed=42, drop_rate=0.005, mutate_rate=0.0):
     """Relevés bancaires miroirs des trades réglés, imparfaits comme en vrai.
 
-    ~0,5 % des flux manquent au relevé (retard de correspondant) : c'est ce
-    qui donne au moteur de réconciliation de la Trésorerie un vrai travail.
-    En production, cette fonction est remplacée par le flux SWIFT/CAMT.053.
+    ~0,5 % des flux manquent au relevé (retard de correspondant), et
+    `mutate_rate` corrompt une fraction des références (troncature côté
+    banque) : c'est ce qui donne au moteur de réconciliation — et à l'IA
+    de matching — un vrai travail. En production, cette fonction est
+    remplacée par le flux SWIFT/CAMT.053.
     """
     business_date = trades_batch["produced_at"][:10]
     rng = random.Random(f"{seed}:statements:{business_date}")
@@ -105,9 +107,12 @@ def simulate_bank_statements(trades_batch, seed=42, drop_rate=0.005):
     for trade in trades_batch["records"]:
         if trade["status"] != "settled" or rng.random() < drop_rate:
             continue
+        reference = f"STL-{trade['trade_id']}"
+        if rng.random() < mutate_rate:  # référence mutilée par la banque
+            reference = reference.replace("STL-TRD-", "STL/TRD") + "/1"
         direction = 1 if rng.random() < 0.5 else -1
         records.append({
-            "reference": f"STL-{trade['trade_id']}",
+            "reference": reference,
             "amount": {
                 "amount": round(direction * trade["notional"]["amount"], 2),
                 "currency": trade["notional"]["currency"],

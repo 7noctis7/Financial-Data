@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Réconciliation IA — Financial Command Center</title>
+<style>
+  :root {
+    --surface-1: #fcfcfb; --page: #f9f9f7;
+    --ink-1: #0b0b0b; --ink-2: #52514e; --ink-muted: #898781;
+    --grid: #e1e0d9; --border: rgba(11,11,11,0.10);
+    --accent: #2a78d6; --accent-wash: rgba(42,120,214,0.10);
+    --track: #cde2fb;
+    --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --surface-1: #1a1a19; --page: #0d0d0d;
+      --ink-1: #ffffff; --ink-2: #c3c2b7; --ink-muted: #898781;
+      --grid: #2c2c2a; --border: rgba(255,255,255,0.10);
+      --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16); --track: #184f95;
+    }
+  }
+  :root[data-theme="dark"] {
+    --surface-1: #1a1a19; --page: #0d0d0d;
+    --ink-1: #ffffff; --ink-2: #c3c2b7; --ink-muted: #898781;
+    --grid: #2c2c2a; --border: rgba(255,255,255,0.10);
+    --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16); --track: #184f95;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink-1);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 20px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 4px; }
+  h1 { font-size: 20px; font-weight: 650; margin: 0; }
+  nav { display: flex; gap: 6px; flex-wrap: wrap; }
+  nav a, .theme-btn {
+    color: var(--ink-2); text-decoration: none; font-size: 13px; font-weight: 600;
+    padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px;
+    background: var(--surface-1); cursor: pointer; font-family: inherit;
+  }
+  nav a:hover, .theme-btn:hover { background: var(--accent-wash); }
+  .sub { color: var(--ink-2); margin: 0 0 16px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+          gap: 12px; margin-bottom: 14px; }
+  .tile { background: var(--surface-1); border: 1px solid var(--border);
+          border-radius: 12px; padding: 13px 16px; }
+  .tile .label { font-size: 12px; color: var(--ink-2); }
+  .tile .value { font-size: 24px; font-weight: 600; }
+  .card { background: var(--surface-1); border: 1px solid var(--border);
+          border-radius: 12px; padding: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: var(--ink-muted); font-weight: 500; font-size: 12px;
+       padding: 6px 10px; border-bottom: 1px solid var(--grid); }
+  td { padding: 8px 10px; border-bottom: 1px solid var(--grid); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  .score { display: flex; align-items: center; gap: 8px; min-width: 130px; }
+  .meter { flex: 1; height: 7px; border-radius: 4px; background: var(--track); overflow: hidden; }
+  .meter > div { height: 100%; background: var(--accent); border-radius: 4px; }
+  .pct { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 12px; }
+  .why { color: var(--ink-muted); font-size: 11px; }
+  .actions { white-space: nowrap; }
+  .actions button {
+    border: 1px solid var(--border); background: var(--surface-1); color: var(--ink-1);
+    font: inherit; font-size: 12px; font-weight: 600; border-radius: 8px;
+    padding: 5px 10px; cursor: pointer; margin-left: 4px;
+  }
+  .actions .yes:hover { border-color: var(--good); color: var(--good); }
+  .actions .no:hover { border-color: var(--critical); color: var(--critical); }
+  .decided { font-size: 12px; font-weight: 650; }
+  .decided.yes { color: var(--good); } .decided.no { color: var(--critical); }
+  .note { color: var(--ink-muted); font-size: 12px; margin-top: 12px; }
+  code { font-size: 12px; }
+  input:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+</style>
+</head>
+<body>
+<script id="fcc-recon-config" type="application/json">null</script>
+<div class="wrap">
+  <header>
+    <h1>Réconciliation IA</h1>
+    <nav>
+      <a href="index.html">Dashboard</a>
+      <a href="explorer.html">Explorateur</a>
+      <a href="reports.html">Rapports</a>
+    </nav>
+    <span style="flex:1"></span>
+    <button class="theme-btn" id="theme"></button>
+  </header>
+  <p class="sub">L'IA propose des rapprochements <b>scorés et explicables</b> entre trades réglés
+  sans relevé et relevés bancaires orphelins (références mutilées, retards). <b>Elle n'écrit jamais</b> :
+  tu acceptes ou rejettes, la décision entre dans la chaîne d'audit et nourrit la boucle de
+  feedback qui calibre les scores suivants.</p>
+  <div class="kpis" id="kpis"></div>
+  <div class="card">
+    <table id="grid"><tr><th>Trade sans relevé</th><th>Relevé orphelin</th><th style="width:180px">Score</th><th>Pourquoi</th><th></th></tr></table>
+    <p class="note" id="note"></p>
+  </div>
+</div>
+
+<script>
+"use strict";
+(() => { /* thème clair/sombre partagé */
+  const THEMES = ["auto", "light", "dark"], LABELS = { auto: "◐ Auto", light: "☀ Clair", dark: "● Sombre" };
+  const apply = (t) => {
+    if (t === "auto") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", t);
+    const b = document.querySelector("#theme"); if (b) b.textContent = LABELS[t];
+  };
+  let theme = localStorage.getItem("fcc-theme") || "auto";
+  apply(theme);
+  addEventListener("DOMContentLoaded", () => { apply(theme);
+    document.querySelector("#theme").onclick = () => {
+      theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+      localStorage.setItem("fcc-theme", theme); apply(theme); };
+  });
+})();
+
+const $ = (s) => document.querySelector(s);
+const config = JSON.parse($("#fcc-recon-config").textContent);
+const STATIC = config !== null;
+const fmtDate = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+const tile = (label, value) =>
+  `<div class="tile"><div class="label">${label}</div><div class="value">${value}</div></div>`;
+const WHY = { amount_proximity: "montant", reference_similarity: "référence", same_day: "date" };
+
+function explain(features) {
+  return Object.entries(WHY)
+    .map(([k, label]) => `${label} ${(features[k] * 100).toFixed(0)} %`).join(" · ");
+}
+
+function render(data) {
+  $("#kpis").innerHTML =
+    tile("Journée", fmtDate(data.business_date)) +
+    tile("Trades sans relevé", data.missing_statement) +
+    tile("Relevés orphelins", data.unknown_statement) +
+    tile("Suggestions IA", data.suggestions.length) +
+    tile("Décisions apprises", `<span id="fb">${data.feedback_entries}</span>`);
+  const grid = $("#grid");
+  for (const s of data.suggestions) {
+    const row = grid.insertRow();
+    row.innerHTML = `
+      <td><code>${s.trade_id}</code></td>
+      <td><code>${s.statement_reference}</code></td>
+      <td><div class="score"><div class="meter"><div style="width:${s.score * 100}%"></div></div>
+          <span class="pct">${(s.score * 100).toFixed(0)} %</span></div></td>
+      <td class="why">${explain(s.features)}</td>
+      <td class="actions">${STATIC
+        ? '<span class="why">décision : en local</span>'
+        : '<button class="yes">✓ Accepter</button><button class="no">✕ Rejeter</button>'}</td>`;
+    if (!STATIC) {
+      row.querySelector(".yes").onclick = () => decideRow(row, s, true);
+      row.querySelector(".no").onclick = () => decideRow(row, s, false);
+    }
+  }
+  $("#note").innerHTML = (STATIC
+    ? "Version en ligne : lecture seule. En local (<code>python3 -m app</code>), chaque décision est journalisée et apprise. "
+    : "Chaque décision est journalisée dans la chaîne d'audit et versée à la base de feedback (persistée dans <code>data/feedback.jsonl</code>). ")
+    + `Lineage XAI : sources ${data.lineage_proof.map((p) => "<code>" + p.urn.replace("urn:fcc:", "") + "</code>").join(", ")} — modèle <code>${data.model}</code>.`;
+}
+
+async function decideRow(row, suggestion, accepted) {
+  const res = await fetch("/api/recon/decide", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ suggestion, accepted, actor: "webapp",
+                           timestamp: new Date().toISOString().slice(0, 19) + "Z" }) });
+  const body = await res.json();
+  if (!res.ok) { alert(body.error); return; }
+  row.cells[4].innerHTML = accepted
+    ? '<span class="decided yes">✓ accepté — journalisé</span>'
+    : '<span class="decided no">✕ rejeté — journalisé</span>';
+  $("#fb").textContent = body.feedback_entries;
+}
+
+(async () => {
+  if (STATIC) { render(config); return; }
+  const res = await fetch("/api/recon");
+  const data = await res.json();
+  if (!res.ok) { $("#note").textContent = data.error; return; }
+  render(data);
+})();
+</script>
+</body>
+</html>

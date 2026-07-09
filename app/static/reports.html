@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rapports certifiés — Financial Command Center</title>
+<style>
+  :root {
+    --surface-1: #fcfcfb; --page: #f9f9f7;
+    --ink-1: #0b0b0b; --ink-2: #52514e; --ink-muted: #898781;
+    --grid: #e1e0d9; --border: rgba(11,11,11,0.10);
+    --accent: #2a78d6; --accent-wash: rgba(42,120,214,0.10);
+    --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --surface-1: #1a1a19; --page: #0d0d0d;
+      --ink-1: #ffffff; --ink-2: #c3c2b7; --ink-muted: #898781;
+      --grid: #2c2c2a; --border: rgba(255,255,255,0.10);
+      --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16);
+    }
+  }
+  :root[data-theme="dark"] {
+    --surface-1: #1a1a19; --page: #0d0d0d;
+    --ink-1: #ffffff; --ink-2: #c3c2b7; --ink-muted: #898781;
+    --grid: #2c2c2a; --border: rgba(255,255,255,0.10);
+    --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink-1);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 20px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 4px; }
+  h1 { font-size: 20px; font-weight: 650; margin: 0; }
+  nav { display: flex; gap: 6px; flex-wrap: wrap; }
+  nav a, .theme-btn {
+    color: var(--ink-2); text-decoration: none; font-size: 13px; font-weight: 600;
+    padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px;
+    background: var(--surface-1); cursor: pointer; font-family: inherit;
+  }
+  nav a:hover, .theme-btn:hover { background: var(--accent-wash); }
+  .sub { color: var(--ink-2); margin: 0 0 18px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+  .card { background: var(--surface-1); border: 1px solid var(--border);
+          border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .card h2 { font-size: 15px; font-weight: 650; margin: 0; }
+  .norm { font-size: 12px; color: var(--ink-muted); min-height: 30px; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px;
+          border: 1px solid var(--border); color: var(--ink-2); }
+  .chip.restricted { border-color: var(--critical); color: var(--critical); }
+  .chip.internal { border-color: var(--warning); }
+  .row { display: flex; gap: 8px; align-items: center; margin-top: auto; }
+  select { padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px;
+           background: var(--page); color: var(--ink-1); font: inherit; }
+  .primary { border: none; border-radius: 8px; background: var(--accent); color: #fff;
+             font: inherit; font-weight: 600; padding: 7px 14px; cursor: pointer; }
+  .primary:disabled { opacity: .5; cursor: default; }
+  input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  #result { margin-top: 16px; }
+  .panel { background: var(--surface-1); border: 1px solid var(--border);
+           border-radius: 12px; padding: 16px; }
+  .panel.ok { border-left: 3px solid var(--good); }
+  .panel.err { border-left: 3px solid var(--critical); }
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; font-size: 13px; }
+  .kv dt { color: var(--ink-muted); }
+  .kv dd { margin: 0; word-break: break-all; font-variant-numeric: tabular-nums; }
+  .dl { display: inline-block; margin-top: 10px; font-weight: 650; color: var(--accent); }
+  code { font-size: 12px; }
+</style>
+</head>
+<body>
+<script id="fcc-reports-config" type="application/json">null</script>
+<div class="wrap">
+  <header>
+    <h1>Rapports certifiés</h1>
+    <nav>
+      <a href="index.html">Dashboard</a>
+      <a href="explorer.html">Explorateur</a>
+      <a href="recon.html">Réconciliation IA</a>
+    </nav>
+    <span style="flex:1"></span>
+    <button class="theme-btn" id="theme"></button>
+  </header>
+  <p class="sub">Chaque livrable embarque son Annexe de Preuve : norme source, horodatage UTC,
+  demandeur, empreinte SHA-256 et les assertions d'audit vérifiées dans le journal chaîné (règle G10).
+  Essaie le rôle <b>viewer</b> pour voir la sécurité contextuelle (G9) refuser l'export en direct.</p>
+  <div class="grid" id="templates"></div>
+  <div id="result"></div>
+</div>
+
+<script>
+"use strict";
+(() => { /* thème clair/sombre partagé */
+  const THEMES = ["auto", "light", "dark"], LABELS = { auto: "◐ Auto", light: "☀ Clair", dark: "● Sombre" };
+  const apply = (t) => {
+    if (t === "auto") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", t);
+    const b = document.querySelector("#theme"); if (b) b.textContent = LABELS[t];
+  };
+  let theme = localStorage.getItem("fcc-theme") || "auto";
+  apply(theme);
+  addEventListener("DOMContentLoaded", () => { apply(theme);
+    document.querySelector("#theme").onclick = () => {
+      theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+      localStorage.setItem("fcc-theme", theme); apply(theme); };
+  });
+})();
+
+const $ = (s) => document.querySelector(s);
+const config = JSON.parse($("#fcc-reports-config").textContent);
+const STATIC = config !== null;
+const ASSERTION_LABELS = "Existence, Exhaustivité, Droits/Obligations, Évaluation, Exactitude, Présentation";
+
+function card(t) {
+  const roles = [...t.roles, "viewer"];
+  const staticFiles = STATIC ? (config.files[t.id] || {}) : null;
+  return `<div class="card">
+    <h2>${t.name}</h2>
+    <div class="norm">${t.norm_ref || "Politique interne"}</div>
+    <div class="chips">
+      <span class="chip ${t.classification}">${t.classification}</span>
+      <span class="chip">${t.department}</span>
+      <span class="chip" title="${ASSERTION_LABELS}">${t.required_assertions.length} assertions ISA</span>
+    </div>
+    ${STATIC
+      ? `<div class="row">${Object.entries(staticFiles).map(([fmt, href]) =>
+           `<a class="dl" href="${href}" download>⬇ ${fmt.toUpperCase()}</a>`).join(" ")}
+         <span style="color:var(--ink-muted);font-size:12px">génération interactive : en local</span></div>`
+      : `<div class="row">
+           <select data-fmt>${["csv", "xlsx", "pdf"].map((f) => `<option>${f}</option>`).join("")}</select>
+           <select data-role>${roles.map((r) => `<option>${r}</option>`).join("")}</select>
+           <button class="primary" data-generate="${t.id}">Générer</button>
+         </div>`}
+  </div>`;
+}
+
+function showResult(ok, title, html) {
+  $("#result").innerHTML = `<div class="panel ${ok ? "ok" : "err"}"><h2 style="margin:0 0 10px;font-size:15px">${title}</h2>${html}</div>`;
+  $("#result").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+async function generate(id, fmt, role) {
+  const res = await fetch("/api/reports/generate", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ template: id, format: fmt, role, requester: "webapp",
+                           date: new Date().toISOString().slice(0, 10) }) });
+  const body = await res.json();
+  if (!res.ok) {
+    showResult(false, "Génération refusée", `<p style="margin:0">${body.error}</p>
+      <p style="color:var(--ink-muted);font-size:12px;margin:8px 0 0">
+      Le refus est journalisé dans la chaîne d'audit — rien n'a été rendu.</p>`);
+    return;
+  }
+  showResult(true, "Livrable certifié généré", `<dl class="kv">
+    <dt>Fichier</dt><dd>${body.path.split("/").pop()}</dd>
+    ${body.norm_ref ? `<dt>Norme source</dt><dd>${body.norm_ref}</dd>` : ""}
+    <dt>Généré le (UTC)</dt><dd>${body.generated_at}</dd>
+    <dt>Demandeur</dt><dd>${body.requester} (rôle ${body.role})</dd>
+    <dt>Provenance</dt><dd>${body.origins.join(", ")}</dd>
+    <dt>Lignes</dt><dd>${body.rows}</dd>
+    <dt>SHA-256 contenu</dt><dd><code>${body.content_hash}</code></dd>
+    <dt>SHA-256 fichier</dt><dd><code>${body.file_hash}</code></dd>
+    <dt>Preuve d'audit</dt><dd><code>${body.audit_proof_hash}</code></dd>
+  </dl><a class="dl" href="${body.download}" download>⬇ Télécharger le rapport</a>`);
+}
+
+(async () => {
+  const templates = STATIC ? config.templates
+    : (await (await fetch("/api/reports/templates")).json()).templates;
+  $("#templates").innerHTML = templates.map(card).join("");
+  if (!STATIC)
+    document.querySelectorAll("[data-generate]").forEach((btn) =>
+      btn.addEventListener("click", () => {
+        const root = btn.closest(".card");
+        generate(btn.dataset.generate,
+                 root.querySelector("[data-fmt]").value,
+                 root.querySelector("[data-role]").value);
+      }));
+})();
+</script>
+</body>
+</html>
