@@ -92,6 +92,62 @@ class SimulatedTradingSource(DataSource):
                           f"{business_date}T18:00:00Z", records)
 
 
+COUNTERPARTY_NAMES = {
+    "R0MUWSFPU8MPRO8K5P83": "BNP Paribas",
+    "F3JS33DEI6XQ4ZBPTN86": "Société Générale",
+    "7LTWFZYICNSX8D621K86": "Deutsche Bank",
+    "8I5DZWZKVSZI1NUHU748": "JPMorgan Chase",
+    "G5GSEF7VJP5I7OUK5573": "Barclays",
+    "549300ZK53CNGEEI6A29": "Nomura",
+}
+
+# Pays de résidence possibles ; les derniers sont à vigilance renforcée
+RESIDENCE_COUNTRIES = ["FR", "DE", "GB", "US", "JP", "CH", "LU", "KY", "PA"]
+RISK_RATINGS = [("low", 0.65), ("medium", 0.25), ("high", 0.10)]
+
+
+class SimulatedClientSource(DataSource):
+    """Dossiers KYC simulés des contreparties (+ fonds sans activité)."""
+
+    origin = SIMULATED
+    product_urn = "urn:fcc:client:kyc-profiles"
+
+    EXTRA_CLIENTS = [
+        ("549300H5DJ2KWQZM4V90", "Helvetia Capital SA"),
+        ("969500FX2K3AB8CD1E22", "Fonds Lumière SICAV"),
+        ("529900T8BM49AURSDO55", "Nordwind Asset GmbH"),
+        ("213800ZBKL9BYSLXAB12", "Atlas Trade Finance Ltd"),
+    ]
+
+    def __init__(self, seed=42):
+        self.seed = seed
+
+    def fetch(self, business_date):
+        rng = random.Random(f"{self.seed}:kyc:{business_date[:7]}")  # stable au mois
+        records = []
+        clients = list(COUNTERPARTY_NAMES.items()) + self.EXTRA_CLIENTS
+        for i, (lei, name) in enumerate(clients):
+            x, cumulative, rating = rng.random(), 0.0, "low"
+            for r, w in RISK_RATINGS:
+                cumulative += w
+                if x < cumulative:
+                    rating = r
+                    break
+            review_days = rng.randint(10, 360)
+            records.append({
+                "client_id": f"CLI-{i:04d}",
+                "lei": lei,
+                "name": name,
+                "risk_rating": rating,
+                "pep": rng.random() < 0.10,
+                "residence_country": rng.choice(RESIDENCE_COUNTRIES),
+                "last_review": f"{business_date[:4]}-01-01T00:00:00Z"
+                               if review_days > 300 else f"{business_date}T00:00:00Z",
+            })
+        return make_batch(self.product_urn, self.origin,
+                          f"{business_date}T06:00:00Z", records)
+
+
 def simulate_bank_statements(trades_batch, seed=42, drop_rate=0.005, mutate_rate=0.0):
     """Relevés bancaires miroirs des trades réglés, imparfaits comme en vrai.
 

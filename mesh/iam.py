@@ -23,6 +23,7 @@ ROLE_CLEARANCE = {
     "risk-analyst": INTERNAL,
     "auditor": RESTRICTED,
     "regulatory-officer": RESTRICTED,
+    "compliance-officer": RESTRICTED,
     "platform-admin": RESTRICTED,
 }
 

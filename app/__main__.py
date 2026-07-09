@@ -39,6 +39,65 @@ _AUDIT = AuditLog()          # journal chaîné de la session serveur
 _FEEDBACK = FeedbackStore(REPO_ROOT / "data" / "feedback.jsonl")
 
 
+def _aml_feedback():
+    from mesh.aml import AML_FEATURES
+    return FeedbackStore(REPO_ROOT / "data" / "feedback-aml.jsonl",
+                         feature_order=AML_FEATURES)
+
+
+def _aml_payload(date, seed=42, n_trades=250):
+    from mesh.aml import screen
+    from sim.generator import SimulatedClientSource, SimulatedTradingSource
+    trades = SimulatedTradingSource(seed=seed, n_trades=n_trades).fetch(date)
+    kyc = SimulatedClientSource(seed=seed).fetch(date)
+    prediction = screen(trades, kyc, Lineage(Registry()), feedback=_aml_feedback())
+    profiles = kyc["records"]
+    return {
+        "business_date": date, "seed": seed,
+        "profiles": profiles,
+        "pep_count": sum(1 for p in profiles if p["pep"]),
+        "high_risk_count": sum(1 for p in profiles if p["risk_rating"] == "high"),
+        "screened_trades": prediction["output"]["screened_trades"],
+        "alerts": prediction["output"]["alerts"],
+        "lineage_proof": prediction["lineage_proof"],
+        "model": prediction["model"],
+    }
+
+
+# Mapping de démonstration pour l'ingestion CSV (colonnes ↔ ontologie)
+INGEST_MAPPING = {
+    "trade_id": "Deal Id",
+    "instrument_id": "ISIN",
+    "counterparty_lei": "LEI",
+    "notional": {"amount": "Nominal", "currency": "Ccy"},
+    "status": lambda row: row["State"].lower(),
+    "executed_at": "Timestamp",
+}
+
+
+def _ingest(body):
+    from mesh.transformer import DataTransformer
+    origin = body.get("origin", "simulated")
+    transformer = DataTransformer("urn:fcc:trading:executed-trades",
+                                  INGEST_MAPPING, audit_log=_AUDIT,
+                                  actor=body.get("actor", "webapp"))
+    batch, rejects = transformer.transform_csv(
+        body["csv"], origin, datetime.datetime.now(datetime.timezone.utc)
+        .isoformat(timespec="seconds"), delimiter=body.get("delimiter", ";"),
+        source_name=body.get("filename", "upload"))
+    entry = _AUDIT.entries()[-1]
+    return {
+        "accepted": len(batch["records"]),
+        "rejected": len(rejects),
+        "rejects": rejects[:20],
+        "origin": batch["origin"],
+        "sample": batch["records"][:5],
+        "audit": {"action": entry["action"], "hash": entry["hash"],
+                  "input_sha256": entry["details"]["input_sha256"]},
+        "audit_chain_intact": _AUDIT.verify_chain() is None,
+    }
+
+
 def _report_generator():
     from reporting.generator import ReportGenerator
     return ReportGenerator(audit_log=_AUDIT)
@@ -133,6 +192,17 @@ class Handler(SimpleHTTPRequestHandler):
                        timestamp=body.get("timestamp", ""), feedback=_FEEDBACK)
                 self._send_json({"ok": True, "feedback_entries": len(_FEEDBACK),
                                  "audit_chain_intact": _AUDIT.verify_chain() is None})
+            elif path == "/api/aml/decide":
+                from mesh import aml
+                body = self._read_body()
+                feedback = _aml_feedback()
+                aml.decide(body["alert"], escalated=bool(body["escalated"]),
+                           actor=body.get("actor", "webapp"), audit_log=_AUDIT,
+                           timestamp=body.get("timestamp", ""), feedback=feedback)
+                self._send_json({"ok": True, "feedback_entries": len(feedback),
+                                 "audit_chain_intact": _AUDIT.verify_chain() is None})
+            elif path == "/api/ingest":
+                self._send_json(_ingest(self._read_body()))
             else:
                 self.send_error(404)
         except Exception as exc:  # le message d'erreur EST la réponse (G9, G10...)
@@ -143,7 +213,7 @@ class Handler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/reports/templates":
             self._send_json({"templates": _templates_listing()})
             return
-        if parsed.path == "/api/recon":
+        if parsed.path in ("/api/recon", "/api/aml"):
             query = parse_qs(parsed.query)
             date = query.get("date", [_default_date()])[0]
             if not DATE_RE.match(date):
@@ -151,7 +221,9 @@ class Handler(SimpleHTTPRequestHandler):
                 return
             try:
                 seed = int(query.get("seed", ["42"])[0])
-                self._send_json(_recon_payload(date, seed))
+                payload = (_recon_payload(date, seed) if parsed.path == "/api/recon"
+                           else _aml_payload(date, seed))
+                self._send_json(payload)
             except Exception as exc:
                 self._send_json({"error": str(exc)}, status=400)
             return
@@ -220,7 +292,13 @@ def export(business_date, seed=42, n_trades=250):
     print(f"export statique : {DIST_DIR / 'index.html'} ({business_date}, seed={seed})")
     _export_explorer()
     _export_reports(business_date)
-    _export_recon(business_date, seed)
+    _export_embedded("recon.html", RECON_PLACEHOLDER, _recon_payload(business_date, seed))
+    _export_embedded("aml.html",
+                     '<script id="fcc-aml-config" type="application/json">null</script>',
+                     _aml_payload(business_date, seed))
+    _export_embedded("ingest.html",
+                     '<script id="fcc-ingest-config" type="application/json">null</script>',
+                     {"mode": "static"})
 
 
 def _export_reports(business_date):
@@ -247,15 +325,18 @@ def _export_reports(business_date):
     print(f"export rapports : {sum(len(v) for v in files.values())} livrables → dist/reports/")
 
 
-def _export_recon(business_date, seed):
-    payload = _recon_payload(business_date, seed)
-    page = (STATIC_DIR / "recon.html").read_text(encoding="utf-8")
-    page = page.replace(RECON_PLACEHOLDER,
-                        '<script id="fcc-recon-config" type="application/json">'
+def _export_embedded(name, placeholder, payload):
+    """Exporte une page en remplaçant son placeholder de config/données."""
+    page = (STATIC_DIR / name).read_text(encoding="utf-8")
+    if placeholder not in page:
+        raise RuntimeError(f"placeholder introuvable dans {name}")
+    marker_id = placeholder.split('id="')[1].split('"')[0]
+    page = page.replace(placeholder,
+                        f'<script id="{marker_id}" type="application/json">'
                         + json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
                         + "</script>")
-    (DIST_DIR / "recon.html").write_text(page, encoding="utf-8")
-    print(f"export réconciliation : {len(payload['suggestions'])} suggestions embarquées")
+    (DIST_DIR / name).write_text(page, encoding="utf-8")
+    print(f"export {name}")
 
 
 def _export_explorer():

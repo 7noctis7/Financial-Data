@@ -19,6 +19,9 @@ rend l'ontologie contraignante et non décorative.
 | `CashPosition` | Trésorerie | Solde d'un compte bancaire réel à une date de valeur, réconcilié ou non (`reconciled: bool`). |
 | `Settlement` | Trésorerie | Mouvement de cash ou de titres dénouant un `Trade`. |
 | `AuditAssertion` | Audit | Affirmation vérifiable sur un Data Product (ex. « les CashPosition du 2026-06-30 sont réconciliées à 100 % »), avec statut `certified` \| `qualified` \| `failed`, horodatage et référence de preuve dans le journal chaîné. |
+| `Client` | Client Lifecycle | Personne morale (ou physique) en relation d'affaires, identifiée par un identifiant client unique — et par LEI quand elle est aussi `Counterparty`. |
+| `KycProfile` | Client Lifecycle | Dossier de connaissance d'un `Client` : notation de risque (`low` \| `medium` \| `high`), statut PEP, pays de résidence, date de dernière revue. Donnée personnelle (RGPD) : classification `restricted` obligatoire. |
+| `AmlAlert` | Client Lifecycle | Signal de vigilance LCB-FT sur l'activité d'un `Client`, avec score explicable et statut de traitement. Toujours dérivée, jamais saisie ; la décision (escalade / classement) est humaine et journalisée. |
 | `RegulatoryRule` | Regulatory | Règle de conformité versionnée, exprimée en code, référençant la norme source (texte + article). |
 | `Filing` | Regulatory | Rapport réglementaire généré, référençant les `AuditAssertion` qui certifient ses données sources. |
 

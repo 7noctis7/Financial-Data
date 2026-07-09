@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KYC / AML — Financial Command Center</title>
+<style>
+  :root {
+    --surface-1: #fcfcfb; --page: #f9f9f7;
+    --ink-1: #0b0b0b; --ink-2: #52514e; --ink-muted: #898781;
+    --grid: #e1e0d9; --border: rgba(11,11,11,0.10);
+    --accent: #2a78d6; --accent-wash: rgba(42,120,214,0.10); --track: #cde2fb;
+    --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --surface-1: #1a1a19; --page: #0d0d0d;
+      --ink-1: #ffffff; --ink-2: #c3c2b7; --ink-muted: #898781;
+      --grid: #2c2c2a; --border: rgba(255,255,255,0.10);
+      --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16); --track: #184f95;
+    }
+  }
+  :root[data-theme="dark"] {
+    --surface-1: #1a1a19; --page: #0d0d0d;
+    --ink-1: #ffffff; --ink-2: #c3c2b7; --ink-muted: #898781;
+    --grid: #2c2c2a; --border: rgba(255,255,255,0.10);
+    --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16); --track: #184f95;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink-1);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 20px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 4px; }
+  h1 { font-size: 20px; font-weight: 650; margin: 0; }
+  nav { display: flex; gap: 6px; flex-wrap: wrap; }
+  nav a, .theme-btn {
+    color: var(--ink-2); text-decoration: none; font-size: 13px; font-weight: 600;
+    padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px;
+    background: var(--surface-1); cursor: pointer; font-family: inherit;
+  }
+  nav a:hover, .theme-btn:hover { background: var(--accent-wash); }
+  .sub { color: var(--ink-2); margin: 0 0 16px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+          gap: 12px; margin-bottom: 14px; }
+  .tile { background: var(--surface-1); border: 1px solid var(--border);
+          border-radius: 12px; padding: 13px 16px; }
+  .tile .label { font-size: 12px; color: var(--ink-2); }
+  .tile .value { font-size: 24px; font-weight: 600; }
+  .cols { display: grid; grid-template-columns: 1fr 1.4fr; gap: 12px; align-items: start; }
+  @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
+  .card { background: var(--surface-1); border: 1px solid var(--border);
+          border-radius: 12px; padding: 16px; min-width: 0; }
+  .card h2 { font-size: 14px; font-weight: 650; margin: 0 0 2px; }
+  .hint { font-size: 12px; color: var(--ink-muted); margin: 0 0 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: var(--ink-muted); font-weight: 500; font-size: 12px;
+       padding: 6px 8px; border-bottom: 1px solid var(--grid); }
+  td { padding: 7px 8px; border-bottom: 1px solid var(--grid); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 650;
+          padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); }
+  .chip.low { color: var(--good); border-color: var(--good); }
+  .chip.medium { color: var(--warning); border-color: var(--warning); }
+  .chip.high, .chip.pep { color: var(--critical); border-color: var(--critical); }
+  .score { display: flex; align-items: center; gap: 8px; min-width: 110px; }
+  .meter { flex: 1; height: 7px; border-radius: 4px; background: var(--track); overflow: hidden; }
+  .meter > div { height: 100%; background: var(--accent); border-radius: 4px; }
+  .pct { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 12px; }
+  .why { color: var(--ink-muted); font-size: 11px; }
+  .actions { white-space: nowrap; }
+  .actions button { border: 1px solid var(--border); background: var(--surface-1);
+    color: var(--ink-1); font: inherit; font-size: 12px; font-weight: 600;
+    border-radius: 8px; padding: 5px 10px; cursor: pointer; margin-left: 4px; }
+  .actions .esc:hover { border-color: var(--critical); color: var(--critical); }
+  .actions .dis:hover { border-color: var(--good); color: var(--good); }
+  .decided { font-size: 12px; font-weight: 650; }
+  .decided.esc { color: var(--critical); } .decided.dis { color: var(--good); }
+  .note { color: var(--ink-muted); font-size: 12px; margin-top: 12px; }
+  code { font-size: 12px; }
+</style>
+</head>
+<body>
+<script id="fcc-aml-config" type="application/json">null</script>
+<div class="wrap">
+  <header>
+    <h1>KYC / AML</h1>
+    <nav>
+      <a href="index.html">Dashboard</a><a href="explorer.html">Explorateur</a>
+      <a href="reports.html">Rapports</a><a href="recon.html">Réconciliation</a>
+      <a href="ingest.html">Ingestion</a>
+    </nav>
+    <span style="flex:1"></span>
+    <button class="theme-btn" id="theme"></button>
+  </header>
+  <p class="sub">Domaine <b>Client Lifecycle</b> — dossiers KYC (donnée RGPD, classification
+  <i>restricted</i>) et <b>pré-diagnostic AML</b> : l'activité du jour est criblée contre les
+  profils (PEP, pays à risque, notation, montants, fractionnement). Une alerte est une
+  <b>priorité de revue</b>, jamais une accusation : l'humain escalade ou classe, tout est journalisé.</p>
+  <div class="kpis" id="kpis"></div>
+  <div class="cols">
+    <div class="card">
+      <h2>Dossiers KYC</h2>
+      <p class="hint">Produit <code>client:kyc-profiles</code> — revue annuelle</p>
+      <table id="profiles"></table>
+    </div>
+    <div class="card">
+      <h2>Alertes du jour</h2>
+      <p class="hint">Score explicable — modèle <code id="model"></code></p>
+      <table id="alerts"><tr><th>Trade</th><th>Client</th><th class="num">Montant</th><th style="width:150px">Score</th><th>Pourquoi</th><th></th></tr></table>
+      <p class="note" id="note"></p>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+(() => { /* thème clair/sombre partagé */
+  const THEMES = ["auto", "light", "dark"], LABELS = { auto: "◐ Auto", light: "☀ Clair", dark: "● Sombre" };
+  const apply = (t) => {
+    if (t === "auto") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", t);
+    const b = document.querySelector("#theme"); if (b) b.textContent = LABELS[t];
+  };
+  let theme = localStorage.getItem("fcc-theme") || "auto";
+  apply(theme);
+  addEventListener("DOMContentLoaded", () => { apply(theme);
+    document.querySelector("#theme").onclick = () => {
+      theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+      localStorage.setItem("fcc-theme", theme); apply(theme); };
+  });
+})();
+
+const $ = (s) => document.querySelector(s);
+const config = JSON.parse($("#fcc-aml-config").textContent);
+const STATIC = config !== null;
+const fmtEur = (v) => v >= 1e6 ? (v / 1e6).toLocaleString("fr-FR", { maximumFractionDigits: 1 }) + " M€"
+                               : (v / 1e3).toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " k€";
+const fmtDate = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+const tile = (label, value) =>
+  `<div class="tile"><div class="label">${label}</div><div class="value">${value}</div></div>`;
+const WHY = { pep: "PEP", high_risk_country: "pays à risque", risk_rating: "notation",
+              large_amount: "montant", velocity: "fractionnement" };
+const explain = (f) => Object.entries(WHY).filter(([k]) => f[k] > 0)
+  .map(([k, l]) => `${l} ${(f[k] * 100).toFixed(0)} %`).join(" · ") || "—";
+
+function render(data) {
+  $("#kpis").innerHTML =
+    tile("Journée", fmtDate(data.business_date)) +
+    tile("Dossiers KYC", data.profiles.length) +
+    tile("PEP", data.pep_count) +
+    tile("Notation high", data.high_risk_count) +
+    tile("Trades criblés", data.screened_trades) +
+    tile("Alertes", data.alerts.length);
+  $("#model").textContent = data.model;
+  $("#profiles").innerHTML =
+    "<tr><th>Client</th><th>Notation</th><th>Drapeaux</th><th>Résidence</th></tr>" +
+    data.profiles.map((p) => `<tr>
+      <td>${p.name}<br><span class="why">${p.client_id} · LEI ${p.lei.slice(0, 8)}…</span></td>
+      <td><span class="chip ${p.risk_rating}">${p.risk_rating}</span></td>
+      <td>${p.pep ? '<span class="chip pep">PEP</span>' : ""}</td>
+      <td>${p.residence_country}</td></tr>`).join("");
+  const grid = $("#alerts");
+  for (const a of data.alerts) {
+    const row = grid.insertRow();
+    row.innerHTML = `
+      <td><code>${a.trade_id.slice(-9)}</code></td>
+      <td>${a.client_name}</td>
+      <td class="num">${fmtEur(a.amount_eur)}</td>
+      <td><div class="score"><div class="meter"><div style="width:${a.score * 100}%"></div></div>
+          <span class="pct">${(a.score * 100).toFixed(0)} %</span></div></td>
+      <td class="why">${explain(a.features)}</td>
+      <td class="actions">${STATIC
+        ? '<span class="why">décision : en local</span>'
+        : '<button class="esc">⚑ Escalader</button><button class="dis">Classer</button>'}</td>`;
+    if (!STATIC) {
+      row.querySelector(".esc").onclick = () => decideRow(row, a, true);
+      row.querySelector(".dis").onclick = () => decideRow(row, a, false);
+    }
+  }
+  $("#note").innerHTML = (STATIC
+    ? "Version en ligne : lecture seule — les décisions se prennent en local (<code>python3 -m app</code>). "
+    : "Escalade et classement entrent dans la chaîne d'audit et calibrent les scores futurs (feedback <code>data/feedback-aml.jsonl</code>). ")
+    + `Lineage XAI : ${data.lineage_proof.map((p) => "<code>" + p.urn.replace("urn:fcc:", "") + "</code>").join(", ")}.`;
+}
+
+async function decideRow(row, alert_, escalated) {
+  const res = await fetch("/api/aml/decide", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ alert: alert_, escalated, actor: "webapp",
+                           timestamp: new Date().toISOString().slice(0, 19) + "Z" }) });
+  const body = await res.json();
+  if (!res.ok) { alert(body.error); return; }
+  row.cells[5].innerHTML = escalated
+    ? '<span class="decided esc">⚑ escaladé — journalisé</span>'
+    : '<span class="decided dis">classé — journalisé</span>';
+}
+
+(async () => {
+  if (STATIC) { render(config); return; }
+  const res = await fetch("/api/aml");
+  const data = await res.json();
+  if (!res.ok) { $("#note").textContent = data.error; return; }
+  render(data);
+})();
+</script>
+</body>
+</html>

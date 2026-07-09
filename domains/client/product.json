@@ -1,0 +1,23 @@
+{
+  "urn": "urn:fcc:client:kyc-profiles",
+  "domain": "client",
+  "name": "KYC Profiles",
+  "version": "1.0.0",
+  "owner": "client-lifecycle@fcc",
+  "description": "Dossiers de connaissance client (notation de risque, PEP, résidence, dernière revue). Donnée personnelle RGPD : classification restricted, accès limité à la conformité et à l'audit. Alimente le pré-diagnostic AML et débloque CRS/FATCA/LSFin.",
+  "output_schema": {
+    "entity": "KycProfile",
+    "fields": [
+      {"name": "client_id", "type": "string", "ontology_term": "Client"},
+      {"name": "lei", "type": "string", "ontology_term": "Counterparty"},
+      {"name": "name", "type": "string"},
+      {"name": "risk_rating", "type": "string"},
+      {"name": "pep", "type": "boolean"},
+      {"name": "residence_country", "type": "string"},
+      {"name": "last_review", "type": "timestamp"}
+    ]
+  },
+  "slo": {"freshness_seconds": 86400, "max_violation_rate": 0.0, "cooldown_seconds": 3600},
+  "access": {"classification": "restricted", "roles": ["compliance-officer", "auditor"]},
+  "sources": []
+}
