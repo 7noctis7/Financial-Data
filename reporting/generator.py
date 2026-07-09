@@ -189,11 +189,75 @@ class ReportGenerator:
             rows = [_trade_row(t) for t in trades["records"]
                     if t["status"] != "cancelled"]
             urn = "urn:fcc:trading:executed-trades"
+        elif dataset == "finrep_f0101":
+            batch, rows = _finrep_f0101(trades, business_date, seed,
+                                        template.get("lang", "fr"))
+            urn = "urn:fcc:accounting:general-ledger"
         else:
             raise ReportError(f"dataset inconnu dans le template : {dataset!r}")
         assertions = demo_assertions(self.audit_log, urn, business_date, batch["origin"])
         return self.generate(template_name, rows, assertions, requester, role,
                              fmt=fmt, business_date=business_date)
+
+
+# Libellés F 01.01 (Annexe III, Règlement d'exécution (UE) 2021/451)
+_F0101_LABELS = {
+    "fr": {
+        "010": "Trésorerie, comptes à vue auprès de banques centrales et autres dépôts à vue",
+        "040": "Autres dépôts à vue",
+        "050": "Actifs financiers détenus à des fins de négociation",
+        "060": "Dérivés",
+        "080": "Titres de créance",
+        "360": "Autres actifs",
+        "380": "TOTAL ACTIFS",
+    },
+    "en": {
+        "010": "Cash, cash balances at central banks and other demand deposits",
+        "040": "Other demand deposits",
+        "050": "Financial assets held for trading",
+        "060": "Derivatives",
+        "080": "Debt securities",
+        "360": "Other assets",
+        "380": "TOTAL ASSETS",
+    },
+}
+_F0101_REFS = {"010": "IAS 1.54 (i)", "040": "Annexe V. Partie 2.3",
+               "050": "IFRS 9. Annexe A", "060": "IFRS 9. Annexe A",
+               "080": "Annexe V. Partie 1.31", "360": "Annexe V. Partie 2",
+               "380": ""}
+
+
+def _finrep_f0101(trades, business_date, seed, lang):
+    """F 01.01 dérivé du grand livre — mapping v1 documenté dans
+    docs/corep-finrep.md (nostro → 040 ; dérivés → 060 ; titres → 080 ;
+    compte d'attente → 360). Cohérence EBA par construction :
+    010 = 040, 050 = 060 + 080, 380 = 010 + 050 + 360."""
+    from mesh.accounting import derive_ledger, trial_balance
+    from mesh.derivations import FX_TO_EUR
+    from sim.generator import simulate_bank_statements
+
+    statements = simulate_bank_statements(trades, seed=seed)
+    ledger = derive_ledger(trades, statements, business_date)
+    balances = {}
+    for account in trial_balance(ledger)["accounts"]:
+        eur = account["balance"] * FX_TO_EUR[account["currency"]]
+        balances[account["account_code"]] = balances.get(account["account_code"], 0.0) + eur
+
+    demand_deposits = round(sum(balances.get(c, 0.0) for c in ("1010", "1011", "1012")), 2)
+    derivatives = round(balances.get("3020", 0.0) + balances.get("3021", 0.0), 2)
+    debt_securities = round(balances.get("3010", 0.0), 2)
+    other_assets = round(balances.get("9990", 0.0), 2)
+    held_for_trading = round(derivatives + debt_securities, 2)
+    total = round(demand_deposits + held_for_trading + other_assets, 2)
+
+    labels = _F0101_LABELS[lang]
+    amounts = {"010": demand_deposits, "040": demand_deposits,
+               "050": held_for_trading, "060": derivatives,
+               "080": debt_securities, "360": other_assets, "380": total}
+    rows = [{"row_ref": ref, "item": labels[ref], "reference": _F0101_REFS[ref],
+             "amount_eur": amounts[ref]} for ref in
+            ("010", "040", "050", "060", "080", "360", "380")]
+    return ledger, rows
 
 
 def demo_assertions(log, product_urn, business_date, origin,

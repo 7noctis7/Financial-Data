@@ -1,0 +1,18 @@
+{
+  "name": "FINREP F 01.01 — Bilan : actifs (FR)",
+  "department": "regulatory",
+  "norm_ref": "Règlement d'exécution (UE) 2021/451 — FINREP, Annexe III, état F 01.01 ; instructions Annexe V (maquette : templates/reporting/FINREP-FR)",
+  "classification": "restricted",
+  "roles": ["regulatory-officer", "auditor"],
+  "title": "F 01.01 — État de la situation financière : Actifs",
+  "dataset": "finrep_f0101",
+  "lang": "fr",
+  "columns": [
+    {"key": "row_ref", "label": "Ligne"},
+    {"key": "item", "label": "Poste"},
+    {"key": "reference", "label": "Références"},
+    {"key": "amount_eur", "label": "Valeur comptable (EUR)"}
+  ],
+  "required_assertions": ["existence", "completeness", "rights_obligations",
+                          "valuation", "accuracy", "presentation"]
+}
