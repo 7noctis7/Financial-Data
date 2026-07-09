@@ -1,4 +1,4 @@
-# Étude de cas — « Banque du Léman SA » : une journée de bout en bout
+# Étude de cas — « Banque Test SA » : une journée de bout en bout
 
 Fil rouge de démonstration de l'outil, revu sous l'angle de chaque
 fonction de direction d'une banque privée. **Établissement fictif ;
@@ -8,7 +8,7 @@ aucun chiffre de ce document n'est rédigé à la main.
 
 ## Le scénario
 
-La Banque du Léman SA, banque privée genevoise fictive, traite une
+La Banque Test SA, banque privée genevoise fictive, traite une
 journée de marché ordinaire : **250 opérations** (obligations
 souveraines, actions, swaps de taux, change à terme) face à **6
 contreparties interbancaires** (LEI réels : BNP Paribas, Société
