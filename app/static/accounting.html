@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comptabilité — Financial Command Center</title>
+<style>
+  :root {
+    --surface-1: #fcfcfb; --page: #f9f9f7;
+    --ink-1: #0b0b0b; --ink-2: #52514e; --ink-muted: #898781;
+    --grid: #e1e0d9; --border: rgba(11,11,11,0.10);
+    --accent: #2a78d6; --accent-wash: rgba(42,120,214,0.10);
+    --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
+    --good-text: #006300;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --surface-1: #1a1a19; --page: #0d0d0d;
+      --ink-1: #ffffff; --ink-2: #c3c2b7; --ink-muted: #898781;
+      --grid: #2c2c2a; --border: rgba(255,255,255,0.10);
+      --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16);
+      --good-text: #0ca30c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --surface-1: #1a1a19; --page: #0d0d0d;
+    --ink-1: #ffffff; --ink-2: #c3c2b7; --ink-muted: #898781;
+    --grid: #2c2c2a; --border: rgba(255,255,255,0.10);
+    --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16);
+    --good-text: #0ca30c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink-1);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 20px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 4px; }
+  h1 { font-size: 20px; font-weight: 650; margin: 0; }
+  nav { display: flex; gap: 6px; flex-wrap: wrap; }
+  nav a, .theme-btn {
+    color: var(--ink-2); text-decoration: none; font-size: 13px; font-weight: 600;
+    padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px;
+    background: var(--surface-1); cursor: pointer; font-family: inherit;
+  }
+  nav a:hover, .theme-btn:hover { background: var(--accent-wash); }
+  .sub { color: var(--ink-2); margin: 0 0 16px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+          gap: 12px; margin-bottom: 14px; }
+  .tile { background: var(--surface-1); border: 1px solid var(--border);
+          border-radius: 12px; padding: 13px 16px; }
+  .tile .label { font-size: 12px; color: var(--ink-2); }
+  .tile .value { font-size: 24px; font-weight: 600; }
+  .tile .value.ok { color: var(--good-text); }
+  .tile .value.ko { color: var(--critical); }
+  .tile .note { font-size: 12px; color: var(--ink-muted); margin-top: 2px; }
+  .cols { display: grid; grid-template-columns: 1.1fr 1fr; gap: 12px; align-items: start; }
+  @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
+  .card { background: var(--surface-1); border: 1px solid var(--border);
+          border-radius: 12px; padding: 16px; min-width: 0; overflow-x: auto; }
+  .card h2 { font-size: 14px; font-weight: 650; margin: 0 0 2px; }
+  .hint { font-size: 12px; color: var(--ink-muted); margin: 0 0 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
+  th { text-align: left; color: var(--ink-muted); font-weight: 500; font-size: 12px;
+       padding: 6px 8px; border-bottom: 1px solid var(--grid); }
+  td { padding: 7px 8px; border-bottom: 1px solid var(--grid); }
+  tr:last-child td { border-bottom: none; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.suspense td { color: var(--critical); font-weight: 600; }
+  tr.total td { font-weight: 650; border-top: 1px solid var(--ink-muted); }
+  .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px;
+          font-weight: 650; padding: 1px 8px; border-radius: 999px;
+          border: 1px solid var(--border); }
+  .chip.debit { color: var(--good-text); } .chip.credit { color: var(--accent); }
+  .note { color: var(--ink-muted); font-size: 12px; margin-top: 12px; }
+  code { font-size: 12px; }
+</style>
+</head>
+<body>
+<script id="fcc-accounting-config" type="application/json">null</script>
+<div class="wrap">
+  <header>
+    <h1>Comptabilité</h1>
+    <nav>
+      <a href="index.html">Dashboard</a><a href="explorer.html">Explorateur</a>
+      <a href="reports.html">Rapports</a><a href="recon.html">Réconciliation</a>
+      <a href="aml.html">KYC/AML</a><a href="ingest.html">Ingestion</a>
+    </nav>
+    <span style="flex:1"></span>
+    <button class="theme-btn" id="theme"></button>
+  </header>
+  <p class="sub">Grand livre en <b>partie double</b>, dérivé des trades réglés et des relevés
+  bancaires (le cash constaté fait foi). Rien n'est saisi : tout flux inexpliqué passe par le
+  <b>compte d'attente 9990</b> et s'affiche en rouge — c'est le premier signal d'audit.
+  Le contrôle de bouclage vérifie débits = crédits par devise à chaque clôture.</p>
+  <div class="kpis" id="kpis"></div>
+  <div class="cols">
+    <div class="card">
+      <h2>Balance générale</h2>
+      <p class="hint">Produit <code>accounting:general-ledger</code> — par compte et devise</p>
+      <table id="balance"></table>
+    </div>
+    <div class="card">
+      <h2>Dernières écritures</h2>
+      <p class="hint">Chaque événement = un débit + un crédit, même montant, même devise</p>
+      <table id="entries"></table>
+      <p class="note" id="note"></p>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+(() => { /* thème clair/sombre partagé */
+  const THEMES = ["auto", "light", "dark"], LABELS = { auto: "◐ Auto", light: "☀ Clair", dark: "● Sombre" };
+  const apply = (t) => {
+    if (t === "auto") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", t);
+    const b = document.querySelector("#theme"); if (b) b.textContent = LABELS[t];
+  };
+  let theme = localStorage.getItem("fcc-theme") || "auto";
+  apply(theme);
+  addEventListener("DOMContentLoaded", () => { apply(theme);
+    document.querySelector("#theme").onclick = () => {
+      theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+      localStorage.setItem("fcc-theme", theme); apply(theme); };
+  });
+})();
+
+const $ = (s) => document.querySelector(s);
+const config = JSON.parse($("#fcc-accounting-config").textContent);
+const STATIC = config !== null;
+const fmtDate = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+const fmtAmt = (v) => v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const tile = (label, value, cls, note) =>
+  `<div class="tile"><div class="label">${label}</div>
+   <div class="value ${cls || ""}">${value}</div>${note ? `<div class="note">${note}</div>` : ""}</div>`;
+
+function render(data) {
+  const tb = data.trial_balance;
+  const suspense = Object.entries(tb.suspense);
+  $("#kpis").innerHTML =
+    tile("Journée", fmtDate(data.business_date)) +
+    tile("Écritures", tb.entries.toLocaleString("fr-FR"), "", "partie double") +
+    tile("Le bilan boucle", tb.balanced ? "✓ Oui" : "✕ NON", tb.balanced ? "ok" : "ko",
+         Object.entries(tb.balanced_by_currency).map(([c, ok]) => `${c} ${ok ? "✓" : "✕"}`).join(" · ")) +
+    tile("Compte d'attente", suspense.length ? suspense.map(([c, v]) => `${fmtAmt(v)} ${c}`).join("<br>") : "0,00",
+         suspense.length ? "ko" : "ok", suspense.length ? "flux inexpliqués à apurer" : "aucun flux inexpliqué");
+
+  const totals = {};
+  $("#balance").innerHTML =
+    "<tr><th>Compte</th><th>Devise</th><th class='num'>Débits</th><th class='num'>Crédits</th><th class='num'>Solde</th></tr>" +
+    tb.accounts.map((a) => {
+      const t = totals[a.currency] ||= { debit: 0, credit: 0 };
+      t.debit += a.debit; t.credit += a.credit;
+      return `<tr class="${a.account_code === "9990" && a.balance !== 0 ? "suspense" : ""}">
+        <td><code>${a.account_code}</code> ${a.account_label}</td><td>${a.currency}</td>
+        <td class="num">${fmtAmt(a.debit)}</td><td class="num">${fmtAmt(a.credit)}</td>
+        <td class="num">${fmtAmt(a.balance)}</td></tr>`;
+    }).join("") +
+    Object.entries(totals).map(([c, t]) => `<tr class="total"><td>Total</td><td>${c}</td>
+      <td class="num">${fmtAmt(t.debit)}</td><td class="num">${fmtAmt(t.credit)}</td>
+      <td class="num">${fmtAmt(t.debit - t.credit)}</td></tr>`).join("");
+
+  $("#entries").innerHTML =
+    "<tr><th>Écriture</th><th>Compte</th><th>Sens</th><th class='num'>Montant</th><th>Référence</th></tr>" +
+    data.entries.map((e) => `<tr>
+      <td><code>${e.entry_id.slice(-8)}</code></td>
+      <td><code>${e.account_code}</code> ${e.account_label}</td>
+      <td><span class="chip ${e.side}">${e.side === "debit" ? "Débit" : "Crédit"}</span></td>
+      <td class="num">${fmtAmt(e.amount.amount)} ${e.amount.currency}</td>
+      <td><code>${e.reference.slice(0, 22)}</code></td></tr>`).join("");
+
+  $("#note").textContent = "Dérivé des produits trading:executed-trades et treasury:cash-positions "
+    + `(provenance ${data.origin}). Requêtable en SQL : table ledger de l'explorateur.`;
+}
+
+(async () => {
+  if (STATIC) { render(config); return; }
+  const res = await fetch("/api/accounting");
+  const data = await res.json();
+  if (!res.ok) { $("#note").textContent = data.error; return; }
+  render(data);
+})();
+</script>
+</body>
+</html>

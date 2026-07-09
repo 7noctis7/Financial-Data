@@ -33,7 +33,7 @@ class TestWarehouse(unittest.TestCase):
     def test_all_tables_built(self):
         self.assertEqual(sorted(self.built),
                          ["audit_journal", "bank_statements", "cash_positions",
-                          "exposures", "trades"])
+                          "exposures", "ledger", "trades"])
 
     def test_schema_reports_tables_and_counts(self):
         tables = {t["name"]: t for t in warehouse.schema(self.con)}

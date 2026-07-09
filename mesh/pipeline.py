@@ -9,6 +9,7 @@ un artefact d'exécution, jamais un contenu du dépôt.
 import json
 from pathlib import Path
 
+from .accounting import derive_ledger
 from .audit import CERTIFIED, QUALIFIED, AuditLog, make_assertion
 from .circuit_breaker import CircuitBreaker
 from .derivations import derive_cash_positions, derive_exposures
@@ -46,9 +47,10 @@ def run_business_day(business_date, trading_source, statements_source,
     statements = statements_source(trades)
     cash = derive_cash_positions(trades, statements, business_date)
     exposures = derive_exposures(trades, business_date)
+    ledger = derive_ledger(trades, statements, business_date)
 
     states = {b["product_urn"]: _process_product(registry, log, b)
-              for b in (trades, cash, exposures)}
+              for b in (trades, cash, exposures, ledger)}
 
     assertions = {}
     for urn, state in states.items():
@@ -83,7 +85,8 @@ def run_business_day(business_date, trading_source, statements_source,
                                            f"{business_date}T20:00:00Z", dry_run=True))
 
     for name, batch in (("trades", trades), ("bank-statements", statements),
-                        ("cash-positions", cash), ("exposures", exposures)):
+                        ("cash-positions", cash), ("exposures", exposures),
+                        ("ledger", ledger)):
         (out_dir / f"{name}.json").write_text(
             json.dumps(batch, indent=2, ensure_ascii=False), encoding="utf-8")
     (out_dir / "audit-journal.json").write_text(

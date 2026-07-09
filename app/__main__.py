@@ -75,6 +75,21 @@ INGEST_MAPPING = {
 }
 
 
+def _accounting_payload(date, seed=42, n_trades=250):
+    from mesh.accounting import derive_ledger, trial_balance
+    from sim.generator import SimulatedTradingSource, simulate_bank_statements
+    trades = SimulatedTradingSource(seed=seed, n_trades=n_trades).fetch(date)
+    statements = simulate_bank_statements(trades, seed=seed,
+                                          drop_rate=0.01, mutate_rate=0.02)
+    ledger = derive_ledger(trades, statements, date)
+    balance = trial_balance(ledger)
+    return {
+        "business_date": date, "seed": seed, "origin": ledger["origin"],
+        "entries": ledger["records"][-14:][::-1],
+        "trial_balance": balance,
+    }
+
+
 def _ingest(body):
     from mesh.transformer import DataTransformer
     origin = body.get("origin", "simulated")
@@ -213,7 +228,7 @@ class Handler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/reports/templates":
             self._send_json({"templates": _templates_listing()})
             return
-        if parsed.path in ("/api/recon", "/api/aml"):
+        if parsed.path in ("/api/recon", "/api/aml", "/api/accounting"):
             query = parse_qs(parsed.query)
             date = query.get("date", [_default_date()])[0]
             if not DATE_RE.match(date):
@@ -221,9 +236,9 @@ class Handler(SimpleHTTPRequestHandler):
                 return
             try:
                 seed = int(query.get("seed", ["42"])[0])
-                payload = (_recon_payload(date, seed) if parsed.path == "/api/recon"
-                           else _aml_payload(date, seed))
-                self._send_json(payload)
+                builder = {"/api/recon": _recon_payload, "/api/aml": _aml_payload,
+                           "/api/accounting": _accounting_payload}[parsed.path]
+                self._send_json(builder(date, seed))
             except Exception as exc:
                 self._send_json({"error": str(exc)}, status=400)
             return
@@ -299,6 +314,9 @@ def export(business_date, seed=42, n_trades=250):
     _export_embedded("ingest.html",
                      '<script id="fcc-ingest-config" type="application/json">null</script>',
                      {"mode": "static"})
+    _export_embedded("accounting.html",
+                     '<script id="fcc-accounting-config" type="application/json">null</script>',
+                     _accounting_payload(business_date, seed))
 
 
 def _export_reports(business_date):
