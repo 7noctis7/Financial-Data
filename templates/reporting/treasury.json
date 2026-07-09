@@ -1,0 +1,16 @@
+{
+  "name": "Position de trésorerie quotidienne",
+  "department": "treasury",
+  "classification": "internal",
+  "roles": ["treasury-ops", "auditor", "risk-analyst"],
+  "title": "Trésorerie — Comptes nostro et réconciliation",
+  "dataset": "cash_positions",
+  "columns": [
+    {"key": "account_id", "label": "Compte"},
+    {"key": "balance", "label": "Solde"},
+    {"key": "currency", "label": "Devise"},
+    {"key": "reconciled", "label": "Réconcilié"},
+    {"key": "value_date", "label": "Date de valeur"}
+  ],
+  "required_assertions": ["existence", "completeness", "accuracy", "valuation"]
+}

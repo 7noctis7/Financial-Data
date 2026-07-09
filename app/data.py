@@ -84,5 +84,8 @@ def build_payload(business_date, seed=42, n_trades=250):
         "filings": summary["filings"],
         "g8_refusals": summary["g8_refusals"],
         "recent_trades": trades["records"][-10:][::-1],
+        "trades": trades["records"],  # détail complet pour les mini-fenêtres
+        "instrument_classes": {i: CLASS_LABELS[c] for i, c in CLASS_BY_INSTRUMENT.items()},
+        "counterparty_names": COUNTERPARTY_NAMES,
         "catalog": Registry().catalog(),
     }

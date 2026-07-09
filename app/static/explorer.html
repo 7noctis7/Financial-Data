@@ -14,13 +14,25 @@
     --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
   }
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       --surface-1: #1a1a19; --page: #0d0d0d;
       --ink-1: #ffffff; --ink-2: #c3c2b7; --ink-muted: #898781;
       --grid: #2c2c2a; --baseline: #383835;
       --border: rgba(255,255,255,0.10);
       --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16);
     }
+  }
+  :root[data-theme="dark"] {
+    --surface-1: #1a1a19; --page: #0d0d0d;
+    --ink-1: #ffffff; --ink-2: #c3c2b7; --ink-muted: #898781;
+    --grid: #2c2c2a; --baseline: #383835;
+    --border: rgba(255,255,255,0.10);
+    --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16);
+  }
+  .theme-btn {
+    cursor: pointer; background: var(--surface-1); color: var(--ink-2);
+    font: inherit; font-size: 13px; font-weight: 600;
+    padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px;
   }
   * { box-sizing: border-box; }
   body {
@@ -137,6 +149,8 @@
   <header>
     <h1>Explorateur de données</h1>
     <nav><a href="index.html">← Dashboard</a></nav>
+    <span style="flex:1"></span>
+    <button class="theme-btn" id="theme" title="Basculer clair / sombre / auto"></button>
   </header>
   <p class="sub">Les Data Products du mesh, filtrables sans SQL — ou en SQL (DuckDB) pour aller plus loin.</p>
 
@@ -183,6 +197,30 @@
   </div>
 </div>
 
+<script>
+"use strict";
+/* Thème : auto (système) → clair → sombre, persistant entre les pages */
+(() => {
+  const THEMES = ["auto", "light", "dark"];
+  const LABELS = { auto: "◐ Auto", light: "☀ Clair", dark: "● Sombre" };
+  const apply = (t) => {
+    if (t === "auto") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", t);
+    const btn = document.querySelector("#theme");
+    if (btn) btn.textContent = LABELS[t];
+  };
+  let theme = localStorage.getItem("fcc-theme") || "auto";
+  apply(theme);
+  addEventListener("DOMContentLoaded", () => {
+    apply(theme);
+    document.querySelector("#theme").onclick = () => {
+      theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+      localStorage.setItem("fcc-theme", theme);
+      apply(theme);
+    };
+  });
+})();
+</script>
 <script type="module">
 "use strict";
 const $ = (s) => document.querySelector(s);
@@ -222,10 +260,14 @@ async function initBackend() {
     const t0 = performance.now();
     const result = await conn.query(sql);
     const columns = result.schema.fields.map((f) => f.name);
-    const rows = result.toArray().map((r) => columns.map((c) => {
-      const v = r[c];
-      if (typeof v === "bigint") return Number(v);
-      if (v && typeof v.toJSON === "function") return v.toJSON();
+    // Arrow renvoie DATE/TIMESTAMP en millisecondes epoch : on les
+    // re-type en Date pour que l'affichage JJ/MM/AAAA s'applique.
+    const isDateCol = result.schema.fields.map((f) => /date|timestamp/i.test(String(f.type)));
+    const rows = result.toArray().map((r) => columns.map((c, i) => {
+      let v = r[c];
+      if (typeof v === "bigint") v = Number(v);
+      if (isDateCol[i] && typeof v === "number") return new Date(v);
+      if (v && typeof v.toJSON === "function" && !(v instanceof Date)) return v.toJSON();
       return v;
     }));
     return { columns, rows: rows.slice(0, 500), truncated: rows.length > 500,
@@ -284,8 +326,18 @@ function buildSQL(counting) {
 }
 
 /* -------------------------------- rendu -------------------------------- */
+/* Dates affichées en JJ/MM/AAAA (stockage : ISO 8601 UTC, invariant n°2) */
+const pad2 = (n) => String(n).padStart(2, "0");
+const fmtDateObj = (d) => {
+  const date = `${pad2(d.getUTCDate())}/${pad2(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
+  const time = d.getUTCHours() || d.getUTCMinutes() || d.getUTCSeconds()
+    ? ` ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}` : "";
+  return date + time;
+};
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}:\d{2}))?/;
 const fmt = (v) => {
   if (v === null || v === undefined) return "—";
+  if (v instanceof Date) return fmtDateObj(v);
   if (typeof v === "object") {
     if (v.amount !== undefined && v.currency !== undefined)
       return Number(v.amount).toLocaleString("fr-FR", { maximumFractionDigits: 2 }) + " " + v.currency;
@@ -293,6 +345,8 @@ const fmt = (v) => {
   }
   if (typeof v === "number") return v.toLocaleString("fr-FR", { maximumFractionDigits: 4 });
   if (typeof v === "boolean") return v ? "oui" : "non";
+  const m = ISO_DATE.exec(String(v));
+  if (m) return `${m[3]}/${m[2]}/${m[1]}` + (m[4] && m[4] !== "00:00" ? " " + m[4] : "");
   return String(v);
 };
 

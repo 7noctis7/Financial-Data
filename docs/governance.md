@@ -16,6 +16,8 @@ qui ne peut pas être vérifiée par du code n'entre pas ici.
 | G6 | Une sortie IA sans lineage résoluble vers des URN du catalogue est rejetée. | `lineage.py` — `explain()` |
 | G7 | Chaque contrat déclare sa classification (`public` / `internal` / `restricted`) et les rôles autorisés ; le registre refuse un contrat `restricted` sans liste de rôles. | `registry.py` |
 | G8 | La provenance (`simulated` / `production`) est portée par chaque batch, propagée aux dérivés et scellée dans les assertions ; une publication réglementaire depuis une provenance non-production est refusée (seul un `dry_run` explicitement marqué est possible). | `sources.py`, `derivations.py` — `combine_origin()`, `regulatory.py` — `generate_filing()` |
+| G9 | Sécurité contextuelle : toute sortie (export, outil MCP, requête) porte une classification et l'appelant un rôle ; habilitation insuffisante ⇒ refus AVANT génération, journalisé (`iam.denied`). Rôle inconnu = aucun accès. | `iam.py` — `check_access()`, appliqué par `reporting/generator.py` et `connectors/mcp_server.py` |
+| G10 | Un livrable certifié embarque son Annexe de Preuve inséparable : horodatage UTC, demandeur, provenance, SHA-256 du contenu, référence des assertions (existence, exhaustivité, droits/obligations, évaluation, exactitude, présentation) — toutes `certified` et vérifiables dans le journal chaîné, sinon refus. | `reporting/generator.py` — `generate()` |
 
 ## 2. Assertions d'audit
 

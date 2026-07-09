@@ -69,7 +69,9 @@ Détails, décisions et roadmap : [`docs/architecture.md`](docs/architecture.md)
 docs/                      Documentation d'architecture (source des pages Notion)
   architecture.md            Frontières de domaines, catalogue, roadmap
   ontology.md                Ontologie fédérée — source de vérité parsée par le code
-  governance.md              Règles G1–G8, vérifiables par code uniquement
+  governance.md              Règles G1–G10, vérifiables par code uniquement
+  connectivity.md            MCP, connecteurs, reporting certifié, feedback loop
+  regulatory-mapping.md      Rapport ↔ régulateur/norme (AnaCredit, EMIR, MiFID II...)
 mesh/                      PLATEFORME SELF-SERVICE (Python stdlib, zéro dépendance)
   contracts/
     data-product.schema.json Contrat type d'un Data Product
@@ -84,11 +86,24 @@ mesh/                      PLATEFORME SELF-SERVICE (Python stdlib, zéro dépend
   regulatory.py              Publication bloquée hors production (G8)
   pipeline.py                Journée ouvrée de bout en bout
   warehouse.py               Entrepôt Parquet + SQL lecture seule (DuckDB, optionnel)
-  __main__.py                CLI : catalog | validate | simulate
+  iam.py                     Sécurité contextuelle par classification (G9)
+  reconciliation.py          IA de matching scoré (suggestions, décision humaine)
+  transformer.py             DataTransformer : ingestion CSV/API → ontologie, audit natif
+  feedback.py                Boucle de feedback : corrections humaines → scores
+  __main__.py                CLI : catalog | validate | simulate | backfill
 domains/                   LES 5 DATA PRODUCTS (un contrat product.json chacun)
   trading/ treasury/ risk/ audit/ regulatory/
 sim/                       SIMULATEUR — seul module du dépôt créant de la donnée
   generator.py               Trades bancaires réalistes + relevés imparfaits
+connectors/                CONNECTIVITÉ (couche anti-corruption + MCP)
+  base.py                    Pattern connecteur : externe → ontologie, validé
+  fix_trading.py             Exemple : ExecutionReport FIX 4.4 → Trading
+  mcp_server.py              Serveur MCP stdio — outils des domaines, IAM G9
+reporting/                 LIVRABLES CERTIFIÉS (CSV/XLSX/PDF, stdlib pur)
+  generator.py               Annexe de Preuve obligatoire (G10) : UTC, demandeur,
+                             SHA-256, assertions ; génération chaînée à l'audit
+  renderers.py               Un format = une fonction, même signature
+templates/reporting/       Templates par département (regulatory, IR, treasury)
 app/                       APPLICATION (locale + export en ligne)
   data.py                    Agrégations → payload du dashboard
   static/index.html          Dashboard autonome (clair/sombre, SVG natif)
