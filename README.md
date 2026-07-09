@@ -18,6 +18,12 @@ mesh/                  Plateforme self-service (code exécutable, stdlib Python 
   audit.py             Journal d'audit immuable (chaîne de hachage) + assertions
   circuit_breaker.py   Isolation automatique d'un domaine en cas de dérive
   lineage.py           Graphe de lineage — preuve XAI pour chaque sortie IA
+  sources.py           Frontière simulé/réel : batches avec provenance (origin)
+  quality.py           Validation des records contre le contrat (signal du disjoncteur)
+  derivations.py       Trésorerie + Risque dérivés des trades (fonctions pures)
+  regulatory.py        Règle G8 : publication bloquée hors provenance production
+  pipeline.py          Journée ouvrée de bout en bout (source → audit → filing)
+sim/                   Simulateur bancaire réaliste — SEUL module créant de la donnée
 domains/
   treasury/ risk/ trading/ audit/ regulatory/
                        Un descripteur product.json par domaine (Data-as-a-Product)
@@ -30,7 +36,18 @@ tests/                 Tests unitaires du noyau plateforme
 python3 -m unittest discover -s tests -v   # tests du noyau
 python3 -m mesh catalog                    # liste le catalogue des Data Products
 python3 -m mesh validate                   # valide tous les contrats de domaines
+python3 -m mesh simulate 2026-07-09        # rejoue un jour ouvré simulé complet
 ```
+
+La simulation exécute la journée de bout en bout — trades réalistes
+(gouvernement/actions/IRS/FX, notionnels log-normaux, contreparties LEI),
+relevés bancaires imparfaits, réconciliation Trésorerie, expositions
+Risque, assertions d'audit chaînées — et écrit les sorties dans `data/`
+(gitignoré). Les batches sont marqués `origin=simulated` et la règle G8
+bloque toute publication réglementaire non-production : la bascule vers
+des données réelles se fait en branchant une `DataSource`
+`origin=production`, sans aucun reliquat simulé possible
+(voir `docs/governance.md` § 5).
 
 ## Principes appliqués
 

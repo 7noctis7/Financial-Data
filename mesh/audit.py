@@ -7,6 +7,8 @@ Règles de gouvernance G3 (immuabilité prouvable) et G4 (une assertion
 import hashlib
 import json
 
+from .sources import ORIGINS
+
 GENESIS = "0" * 64
 
 CERTIFIED = "certified"
@@ -63,27 +65,33 @@ class AssertionError_(ValueError):
     """Assertion d'audit invalide (nom suffixé pour ne pas masquer le builtin)."""
 
 
-def make_assertion(log, auditor, product_urn, scope, status, evidence, timestamp):
+def make_assertion(log, auditor, product_urn, scope, status, evidence, timestamp, origin):
     """Publie une AuditAssertion et journalise sa preuve.
 
     Retourne l'assertion, dont `proof_hash` pointe l'entrée du journal —
     c'est ce hash que Regulatory/IR citent pour publier un chiffre (G4).
+    `origin` est la provenance des données certifiées (simulated /
+    production) : elle est scellée dans la preuve et vérifiée à la
+    publication réglementaire (G8).
     """
     if status not in STATUSES:
         raise AssertionError_(f"statut inconnu : {status!r}")
+    if origin not in ORIGINS:
+        raise AssertionError_(f"provenance inconnue : {origin!r}")
     if status == CERTIFIED and not evidence:
         raise AssertionError_("une assertion 'certified' exige une preuve (G4)")
     proof_hash = log.append(
         actor=auditor,
         action="audit.assertion",
         subject_urn=product_urn,
-        details={"scope": scope, "status": status, "evidence": evidence},
+        details={"scope": scope, "status": status, "evidence": evidence, "origin": origin},
         timestamp=timestamp,
     )
     return {
         "product_urn": product_urn,
         "scope": scope,
         "status": status,
+        "origin": origin,
         "proof_hash": proof_hash,
         "timestamp": timestamp,
     }
@@ -97,5 +105,6 @@ def verify_assertion(log, assertion):
         e["hash"] == assertion["proof_hash"]
         and e["subject_urn"] == assertion["product_urn"]
         and e["details"]["status"] == assertion["status"]
+        and e["details"]["origin"] == assertion["origin"]
         for e in log.entries()
     )

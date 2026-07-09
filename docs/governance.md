@@ -15,6 +15,7 @@ qui ne peut pas être vérifiée par du code n'entre pas ici.
 | G5 | Un produit dont le disjoncteur est ouvert est non consommable ; les consommateurs le voient via le catalogue. | `circuit_breaker.py` |
 | G6 | Une sortie IA sans lineage résoluble vers des URN du catalogue est rejetée. | `lineage.py` — `explain()` |
 | G7 | Chaque contrat déclare sa classification (`public` / `internal` / `restricted`) et les rôles autorisés ; le registre refuse un contrat `restricted` sans liste de rôles. | `registry.py` |
+| G8 | La provenance (`simulated` / `production`) est portée par chaque batch, propagée aux dérivés et scellée dans les assertions ; une publication réglementaire depuis une provenance non-production est refusée (seul un `dry_run` explicitement marqué est possible). | `sources.py`, `derivations.py` — `combine_origin()`, `regulatory.py` — `generate_filing()` |
 
 ## 2. Assertions d'audit
 
@@ -51,7 +52,28 @@ Regulatory liste les règles actives avec leur référence normative. La
 on traduit norme par norme, à la main, avec revue — l'automatisation
 viendra quand le corpus de règles manuelles donnera un étalon de qualité.
 
-## 5. Ce que la gouvernance ne fait pas (réduction)
+## 5. Données simulées vs réelles (G8)
+
+Le mesh tourne aujourd'hui sur données simulées (`sim/generator.py`),
+réalistes pour une salle de marchés bancaire. La frontière avec le réel
+est structurelle, pas conventionnelle :
+
+- **Une seule fabrique de données** : `sim/` est le seul module du dépôt
+  qui crée de la donnée ; tout batch qu'il produit est `origin=simulated`.
+- **Provenance transitive** : un produit dérivé est `simulated` dès qu'un
+  de ses amonts l'est — impossible de « blanchir » du simulé en le
+  faisant transiter par Trésorerie ou Risque.
+- **Sortie bloquée par le code** : `generate_filing()` lève `OriginError`
+  sur toute assertion non-production ; le mode `dry_run` produit un
+  filing préfixé `DRYRUN-`, jamais soumissible.
+- **Aucune donnée dans le dépôt** : les sorties vont dans `data/`
+  (gitignoré) — la donnée simulée est un artefact d'exécution.
+
+Bascule en réel : implémenter une `DataSource` `origin=production`
+(FIX/SWIFT/CAMT.053, base comptable) et l'injecter dans
+`run_business_day()`. Zéro autre changement, zéro reliquat possible.
+
+## 6. Ce que la gouvernance ne fait pas (réduction)
 
 - Pas de workflow d'approbation humain outillé (une PR Git suffit).
 - Pas de moteur de policies générique (OPA, etc.) tant que les 7 règles

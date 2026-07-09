@@ -7,6 +7,7 @@ from mesh import audit, schema
 from mesh.circuit_breaker import CLOSED, HALF_OPEN, OPEN, CircuitBreaker
 from mesh.lineage import Lineage, LineageError
 from mesh.registry import CONTRACT_SCHEMA_PATH, Registry, load_ontology_terms, validate_contract
+from mesh.sources import PRODUCTION, SIMULATED
 
 REGISTRY = Registry()
 CONTRACT_SCHEMA = json.loads(CONTRACT_SCHEMA_PATH.read_text(encoding="utf-8"))
@@ -92,14 +93,20 @@ class TestAuditLog(unittest.TestCase):
         with self.assertRaises(audit.AssertionError_):
             audit.make_assertion(log, "auditor@fcc", "urn:fcc:treasury:cash-positions",
                                  "2026-06", audit.CERTIFIED, evidence=None,
-                                 timestamp="2026-07-09T12:00:00Z")
+                                 timestamp="2026-07-09T12:00:00Z", origin=PRODUCTION)
+
+    def test_unknown_origin_rejected(self):
+        with self.assertRaises(audit.AssertionError_):
+            audit.make_assertion(self._log(), "auditor@fcc", "urn:fcc:risk:exposures",
+                                 "2026-06", audit.QUALIFIED, evidence={},
+                                 timestamp="2026-07-09T12:00:00Z", origin="staging")
 
     def test_assertion_roundtrip(self):
         log = self._log()
         assertion = audit.make_assertion(
             log, "auditor@fcc", "urn:fcc:treasury:cash-positions", "2026-06",
             audit.CERTIFIED, evidence={"reconciled_pct": 100.0},
-            timestamp="2026-07-09T12:00:00Z")
+            timestamp="2026-07-09T12:00:00Z", origin=PRODUCTION)
         self.assertTrue(audit.verify_assertion(log, assertion))
         log._entries[-1]["details"]["status"] = audit.FAILED
         self.assertFalse(audit.verify_assertion(log, assertion))
