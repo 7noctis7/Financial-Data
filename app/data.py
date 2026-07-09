@@ -1,0 +1,88 @@
+"""Prépare le payload du dashboard depuis le pipeline du mesh.
+
+Les agrégations vivent ici, côté plateforme : le front ne reçoit que des
+séries prêtes à tracer. Même payload pour le serveur local et l'export
+statique — c'est ce qui garantit que les deux vues sont identiques.
+"""
+
+from collections import Counter
+
+from mesh.derivations import FX_TO_EUR, derive_cash_positions, derive_exposures
+from mesh.pipeline import run_business_day
+from mesh.registry import Registry
+from sim.generator import INSTRUMENTS, SimulatedTradingSource, simulate_bank_statements
+
+CLASS_LABELS = {
+    "govt_bond": "Obligations souveraines",
+    "equity": "Actions",
+    "irs": "Swaps de taux",
+    "fx_forward": "Change à terme",
+}
+CLASS_BY_INSTRUMENT = {ident: cls for ident, cls, _ccy, _median in INSTRUMENTS}
+COUNTERPARTY_NAMES = {
+    "R0MUWSFPU8MPRO8K5P83": "BNP Paribas",
+    "F3JS33DEI6XQ4ZBPTN86": "Société Générale",
+    "7LTWFZYICNSX8D621K86": "Deutsche Bank",
+    "8I5DZWZKVSZI1NUHU748": "JPMorgan Chase",
+    "G5GSEF7VJP5I7OUK5573": "Barclays",
+    "549300ZK53CNGEEI6A29": "Nomura",
+}
+
+
+def _eur(money):
+    return money["amount"] * FX_TO_EUR[money["currency"]]
+
+
+def build_payload(business_date, seed=42, n_trades=250):
+    source = SimulatedTradingSource(seed=seed, n_trades=n_trades)
+    trades = source.fetch(business_date)
+    statements = simulate_bank_statements(trades, seed=seed)
+    cash = derive_cash_positions(trades, statements, business_date)
+    exposures = derive_exposures(trades, business_date)
+    summary = run_business_day(
+        business_date, source, lambda t: simulate_bank_statements(t, seed=seed))
+
+    by_hour = Counter(int(t["executed_at"][11:13]) for t in trades["records"])
+    by_class = Counter()
+    total_notional = 0.0
+    for trade in trades["records"]:
+        if trade["status"] == "cancelled":
+            continue
+        eur = _eur(trade["notional"])
+        by_class[CLASS_BY_INSTRUMENT[trade["instrument_id"]]] += eur
+        total_notional += eur
+
+    return {
+        "business_date": business_date,
+        "origin": trades["origin"],
+        "params": {"seed": seed, "n_trades": n_trades},
+        "kpis": {
+            "trades": len(trades["records"]),
+            "notional_eur": round(total_notional, 2),
+            "exposure_eur": round(sum(_eur(r["exposure"]) for r in exposures["records"]), 2),
+            "accounts": len(cash["records"]),
+            "reconciled_accounts": sum(1 for r in cash["records"] if r["reconciled"]),
+            "audit_chain_intact": summary["audit_chain_intact"],
+        },
+        "trades_by_hour": [
+            {"hour": f"{h:02d}h", "count": by_hour.get(h, 0)} for h in range(7, 18)
+        ],
+        "notional_by_class": sorted(
+            ({"label": CLASS_LABELS[cls], "eur": round(v, 2)} for cls, v in by_class.items()),
+            key=lambda x: -x["eur"]),
+        "exposures": sorted(
+            ({
+                "counterparty": COUNTERPARTY_NAMES.get(r["counterparty_lei"],
+                                                       r["counterparty_lei"]),
+                "lei": r["counterparty_lei"],
+                "eur": r["exposure"]["amount"],
+                "limit_utilisation": r["limit_utilisation"],
+            } for r in exposures["records"]),
+            key=lambda x: -x["eur"]),
+        "cash": cash["records"],
+        "products": summary["products"],
+        "filings": summary["filings"],
+        "g8_refusals": summary["g8_refusals"],
+        "recent_trades": trades["records"][-10:][::-1],
+        "catalog": Registry().catalog(),
+    }

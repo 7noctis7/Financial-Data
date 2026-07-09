@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Financial Command Center</title>
+<style>
+  :root {
+    --surface-1: #fcfcfb; --page: #f9f9f7;
+    --ink-1: #0b0b0b; --ink-2: #52514e; --ink-muted: #898781;
+    --grid: #e1e0d9; --baseline: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --series-1: #2a78d6; --series-1-track: #cde2fb;
+    --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
+    --good-text: #006300;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface-1: #1a1a19; --page: #0d0d0d;
+      --ink-1: #ffffff; --ink-2: #c3c2b7; --ink-muted: #898781;
+      --grid: #2c2c2a; --baseline: #383835;
+      --border: rgba(255,255,255,0.10);
+      --series-1: #3987e5; --series-1-track: #184f95;
+      --good-text: #0ca30c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--page); color: var(--ink-1);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 20px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+  h1 { font-size: 20px; font-weight: 650; margin: 0; }
+  .sub { color: var(--ink-2); margin: 0 0 18px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 3px 10px; font-size: 12px; font-weight: 600; color: var(--ink-2);
+    background: var(--surface-1);
+  }
+  .badge .dot { width: 8px; height: 8px; border-radius: 50%; }
+  #controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 18px; }
+  #controls[hidden] { display: none; }
+  #controls label { color: var(--ink-2); font-size: 12px; }
+  #controls input {
+    width: 110px; padding: 5px 8px; border: 1px solid var(--border);
+    border-radius: 8px; background: var(--surface-1); color: var(--ink-1); font: inherit;
+  }
+  #controls input[name="trades"], #controls input[name="seed"] { width: 74px; }
+  #controls button {
+    padding: 6px 14px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--series-1); color: #fff; font: inherit; font-weight: 600; cursor: pointer;
+  }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .tile {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 16px;
+  }
+  .tile .label { font-size: 12px; color: var(--ink-2); margin-bottom: 4px; }
+  .tile .value { font-size: 26px; font-weight: 600; }
+  .tile .note { font-size: 12px; color: var(--ink-muted); margin-top: 2px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .card {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px; position: relative; min-width: 0;
+  }
+  .card.wide { grid-column: 1 / -1; }
+  .card h2 { font-size: 14px; font-weight: 650; margin: 0 0 2px; }
+  .card .hint { font-size: 12px; color: var(--ink-muted); margin: 0 0 12px; }
+  svg { display: block; width: 100%; height: auto; }
+  .bar { fill: var(--series-1); }
+  .gridline { stroke: var(--grid); stroke-width: 1; }
+  .baseline { stroke: var(--baseline); stroke-width: 1; }
+  .tick { fill: var(--ink-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .val { fill: var(--ink-2); font-size: 11px; font-weight: 600; }
+  .cat { fill: var(--ink-2); font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: var(--ink-muted); font-weight: 500; font-size: 12px;
+       padding: 6px 10px; border-bottom: 1px solid var(--grid); }
+  td { padding: 7px 10px; border-bottom: 1px solid var(--grid); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: none; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; }
+  .chip .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .tooltip {
+    position: fixed; pointer-events: none; z-index: 10; display: none;
+    background: var(--ink-1); color: var(--page); border-radius: 8px;
+    padding: 6px 10px; font-size: 12px; max-width: 260px;
+  }
+  .tooltip b { font-variant-numeric: tabular-nums; }
+  footer { margin-top: 20px; color: var(--ink-muted); font-size: 12px; }
+  footer a { color: var(--ink-2); }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<script id="fcc-data" type="application/json">null</script>
+<div class="wrap">
+  <header>
+    <h1>Financial Command Center</h1>
+    <span class="badge" id="origin-badge"></span>
+    <span class="badge" id="date-badge"></span>
+  </header>
+  <p class="sub">Data Mesh bancaire — trading, trésorerie, risque, audit continu, gouvernance fédérée.</p>
+
+  <form id="controls" hidden>
+    <label>Date <input type="date" name="date"></label>
+    <label>Seed <input type="number" name="seed" value="42"></label>
+    <label>Trades <input type="number" name="trades" value="250" min="1" max="20000"></label>
+    <button type="submit">Rejouer la journée</button>
+  </form>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="grid">
+    <div class="card wide">
+      <h2>Activité de trading par heure</h2>
+      <p class="hint">Nombre de trades exécutés, séance 07h–17h30 UTC</p>
+      <div id="chart-hours"></div>
+    </div>
+    <div class="card">
+      <h2>Exposition par contrepartie</h2>
+      <p class="hint">Notionnel vif valorisé en EUR — produit <code>risk:exposures</code></p>
+      <div id="chart-expo"></div>
+    </div>
+    <div class="card">
+      <h2>Notionnel par classe d'actifs</h2>
+      <p class="hint">Trades non annulés, valorisés en EUR</p>
+      <div id="chart-class"></div>
+    </div>
+    <div class="card wide">
+      <h2>État des Data Products</h2>
+      <p class="hint">Qualité, disjoncteurs et assertions d'audit de la journée</p>
+      <table id="products"></table>
+    </div>
+    <div class="card">
+      <h2>Comptes nostro</h2>
+      <p class="hint">Réconciliation trades ↔ relevés bancaires</p>
+      <table id="cash"></table>
+    </div>
+    <div class="card">
+      <h2>Derniers trades</h2>
+      <p class="hint">Fin de séance — produit <code>trading:executed-trades</code></p>
+      <table id="trades"></table>
+    </div>
+  </div>
+
+  <footer id="footer"></footer>
+</div>
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+const SVGNS = "http://www.w3.org/2000/svg";
+const embedded = JSON.parse($("#fcc-data").textContent);
+const LIVE = embedded === null;
+
+const fmtInt = (v) => v.toLocaleString("fr-FR");
+function fmtEur(v) {
+  const a = Math.abs(v);
+  if (a >= 1e9) return (v / 1e9).toLocaleString("fr-FR", { maximumFractionDigits: 2 }) + " Md€";
+  if (a >= 1e6) return (v / 1e6).toLocaleString("fr-FR", { maximumFractionDigits: 1 }) + " M€";
+  if (a >= 1e3) return (v / 1e3).toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " k€";
+  return v.toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " €";
+}
+const fmtMoney = (m) => m.amount.toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " " + m.currency;
+
+function el(name, attrs, text) {
+  const node = document.createElementNS(SVGNS, name);
+  for (const k in attrs) node.setAttribute(k, attrs[k]);
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+// Barre fine : extrémité de donnée arrondie (4px), carrée à la ligne de base
+function barPath(x, y, w, h, horizontal) {
+  const r = Math.min(4, horizontal ? w : h);
+  if (horizontal)
+    return `M${x},${y} h${w - r} a${r},${r} 0 0 1 ${r},${r} v${h - 2 * r} a${r},${r} 0 0 1 -${r},${r} h-${w - r} Z`;
+  return `M${x},${y + h} v-${h - r} a${r},${r} 0 0 1 ${r},-${r} h${w - 2 * r} a${r},${r} 0 0 1 ${r},${r} v${h - r} Z`;
+}
+const tooltip = $("#tooltip");
+function hover(node, html) {
+  node.addEventListener("mousemove", (e) => {
+    tooltip.innerHTML = html;
+    tooltip.style.display = "block";
+    const tw = tooltip.offsetWidth;
+    tooltip.style.left = Math.min(e.clientX + 12, innerWidth - tw - 8) + "px";
+    tooltip.style.top = (e.clientY + 14) + "px";
+  });
+  node.addEventListener("mouseleave", () => { tooltip.style.display = "none"; });
+}
+function niceMax(v) {
+  const p = Math.pow(10, Math.floor(Math.log10(v || 1)));
+  for (const m of [1, 2, 2.5, 5, 10]) if (m * p >= v) return m * p;
+  return 10 * p;
+}
+
+function columnChart(container, rows) {
+  container.textContent = "";
+  const W = 960, H = 240, top = 12, bottom = 26, left = 40, right = 8;
+  const plotW = W - left - right, plotH = H - top - bottom;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img",
+    "aria-label": "Trades exécutés par heure" });
+  const max = niceMax(Math.max(...rows.map((r) => r.count)));
+  for (let i = 0; i <= 4; i++) {
+    const y = top + plotH - (plotH * i) / 4;
+    if (i > 0) svg.appendChild(el("line", { class: "gridline", x1: left, x2: W - right, y1: y, y2: y }));
+    svg.appendChild(el("text", { class: "tick", x: left - 6, y: y + 4, "text-anchor": "end" },
+      fmtInt(Math.round((max * i) / 4))));
+  }
+  svg.appendChild(el("line", { class: "baseline", x1: left, x2: W - right, y1: top + plotH, y2: top + plotH }));
+  const band = plotW / rows.length, bw = Math.min(24, band * 0.55);
+  const peak = rows.reduce((a, b) => (b.count > a.count ? b : a), rows[0]);
+  rows.forEach((row, i) => {
+    const h = (row.count / max) * plotH;
+    const x = left + band * i + (band - bw) / 2;
+    const bar = el("path", { class: "bar", d: barPath(x, top + plotH - h, bw, h, false) });
+    hover(bar, `${row.hour} — <b>${fmtInt(row.count)}</b> trades`);
+    svg.appendChild(bar);
+    if (row === peak)
+      svg.appendChild(el("text", { class: "val", x: x + bw / 2, y: top + plotH - h - 6,
+        "text-anchor": "middle" }, fmtInt(row.count)));
+    svg.appendChild(el("text", { class: "tick", x: left + band * i + band / 2,
+      y: H - 8, "text-anchor": "middle" }, row.hour));
+  });
+  container.appendChild(svg);
+}
+
+function hbarChart(container, rows, opts) {
+  container.textContent = "";
+  const W = 480, rowH = 34, left = 4, right = 78, labelH = 16;
+  const H = rows.length * rowH + 6;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": opts.aria });
+  const max = Math.max(...rows.map((r) => r.value));
+  rows.forEach((row, i) => {
+    const y = i * rowH;
+    const w = Math.max(6, (row.value / max) * (W - left - right));
+    svg.appendChild(el("text", { class: "cat", x: left, y: y + labelH - 3 }, row.label));
+    const bar = el("path", { class: "bar", d: barPath(left, y + labelH, w, 12, true) });
+    hover(bar, row.tip);
+    svg.appendChild(bar);
+    svg.appendChild(el("text", { class: "val", x: left + w + 8, y: y + labelH + 10 },
+      fmtEur(row.value)));
+  });
+  container.appendChild(svg);
+}
+
+const STATUS = {
+  good: { color: "var(--good)", icon: "✓" },
+  warning: { color: "var(--warning)", icon: "⚠" },
+  critical: { color: "var(--critical)", icon: "✕" },
+};
+function chip(kind, label) {
+  const s = STATUS[kind];
+  return `<span class="chip"><span class="dot" style="background:${s.color}"></span>${s.icon} ${label}</span>`;
+}
+
+function tile(label, value, note) {
+  return `<div class="tile"><div class="label">${label}</div><div class="value">${value}</div>${note ? `<div class="note">${note}</div>` : ""}</div>`;
+}
+
+function render(data) {
+  const simulated = data.origin !== "production";
+  $("#origin-badge").innerHTML =
+    `<span class="dot" style="background:${simulated ? "var(--warning)" : "var(--good)"}"></span>` +
+    (simulated ? "⚠ Données simulées — G8 : publication bloquée" : "✓ Données de production");
+  $("#date-badge").textContent = "Journée du " + data.business_date;
+
+  const k = data.kpis;
+  $("#kpis").innerHTML =
+    tile("Trades du jour", fmtInt(k.trades), `seed ${data.params.seed}`) +
+    tile("Notionnel traité", fmtEur(k.notional_eur), "hors annulations") +
+    tile("Exposition totale", fmtEur(k.exposure_eur), "notionnel vif, EUR") +
+    tile("Comptes réconciliés", `${k.reconciled_accounts}/${k.accounts}`,
+      k.reconciled_accounts === k.accounts ? "trades ↔ relevés : complet" : "écarts en suspens") +
+    tile("Chaîne d'audit", k.audit_chain_intact ? "Intègre" : "CORROMPUE",
+      "journal chaîné SHA-256");
+
+  columnChart($("#chart-hours"), data.trades_by_hour);
+  hbarChart($("#chart-expo"), data.exposures.map((e) => ({
+    label: e.counterparty, value: e.eur,
+    tip: `${e.counterparty}<br>LEI ${e.lei}<br><b>${fmtEur(e.eur)}</b> — ${(e.limit_utilisation * 100).toFixed(1)} % de la limite`,
+  })), { aria: "Exposition par contrepartie en euros" });
+  hbarChart($("#chart-class"), data.notional_by_class.map((c) => ({
+    label: c.label, value: c.eur, tip: `${c.label}<br><b>${fmtEur(c.eur)}</b>`,
+  })), { aria: "Notionnel par classe d'actifs en euros" });
+
+  $("#products").innerHTML =
+    "<tr><th>Data Product</th><th class='num'>Records</th><th class='num'>Violations schéma</th><th>Disjoncteur</th><th>Assertion d'audit</th></tr>" +
+    Object.entries(data.products).map(([urn, p]) => `<tr>
+      <td><code>${urn.replace("urn:fcc:", "")}</code></td>
+      <td class="num">${fmtInt(p.records)}</td>
+      <td class="num">${fmtInt(p.schema_violations)}</td>
+      <td>${p.breaker_state === "closed" ? chip("good", "fermé (nominal)") : chip("critical", p.breaker_state)}</td>
+      <td>${p.assertion === "certified" ? chip("good", "certified") : chip("warning", p.assertion)}</td>
+    </tr>`).join("");
+
+  $("#cash").innerHTML =
+    "<tr><th>Compte</th><th class='num'>Solde</th><th>Réconcilié</th></tr>" +
+    data.cash.map((c) => `<tr>
+      <td>${c.account_id}</td>
+      <td class="num">${fmtMoney(c.balance)}</td>
+      <td>${c.reconciled ? chip("good", "oui") : chip("warning", "écart")}</td>
+    </tr>`).join("");
+
+  $("#trades").innerHTML =
+    "<tr><th>Trade</th><th>Instrument</th><th class='num'>Notionnel</th><th>Statut</th></tr>" +
+    data.recent_trades.map((t) => `<tr>
+      <td>${t.executed_at.slice(11, 16)}</td>
+      <td><code>${t.instrument_id}</code></td>
+      <td class="num">${fmtMoney(t.notional)}</td>
+      <td>${t.status}</td>
+    </tr>`).join("");
+
+  $("#footer").innerHTML =
+    `${data.g8_refusals.length} publication(s) réglementaire(s) refusée(s) par la règle G8 (provenance ${data.origin}) — ` +
+    `${data.filings.filter((f) => f.dry_run).length} dry-run marqué(s) DRYRUN. ` +
+    `Catalogue : ${data.catalog.length} Data Products. ` +
+    `<a href="https://github.com/7noctis7/Financial-Data">Code source</a>`;
+}
+
+async function load(params) {
+  const q = new URLSearchParams(params).toString();
+  const res = await fetch("/api/summary" + (q ? "?" + q : ""));
+  if (!res.ok) throw new Error(await res.text());
+  render(await res.json());
+}
+
+if (LIVE) {
+  const form = $("#controls");
+  form.hidden = false;
+  form.date.value = new Date().toISOString().slice(0, 10);
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    load({ date: form.date.value, seed: form.seed.value, trades: form.trades.value });
+  });
+  load({});
+} else {
+  render(embedded);
+}
+</script>
+</body>
+</html>
