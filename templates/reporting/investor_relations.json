@@ -1,0 +1,15 @@
+{
+  "name": "Communication Investor Relations",
+  "department": "investor-relations",
+  "classification": "internal",
+  "roles": ["investor-relations", "auditor", "regulatory-officer"],
+  "title": "Investor Relations — Indicateurs certifiés",
+  "dataset": "exposures",
+  "columns": [
+    {"key": "counterparty_lei", "label": "Contrepartie (LEI)"},
+    {"key": "exposure_eur", "label": "Exposition (EUR)"},
+    {"key": "limit_utilisation", "label": "Utilisation de la limite"}
+  ],
+  "required_assertions": ["existence", "completeness", "rights_obligations",
+                          "valuation", "accuracy", "presentation"]
+}

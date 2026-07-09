@@ -15,7 +15,7 @@
     --good-text: #006300;
   }
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       --surface-1: #1a1a19; --page: #0d0d0d;
       --ink-1: #ffffff; --ink-2: #c3c2b7; --ink-muted: #898781;
       --grid: #2c2c2a; --baseline: #383835;
@@ -24,6 +24,15 @@
       --good-text: #0ca30c;
     }
   }
+  :root[data-theme="dark"] {
+    --surface-1: #1a1a19; --page: #0d0d0d;
+    --ink-1: #ffffff; --ink-2: #c3c2b7; --ink-muted: #898781;
+    --grid: #2c2c2a; --baseline: #383835;
+    --border: rgba(255,255,255,0.10);
+    --series-1: #3987e5; --series-1-track: #184f95;
+    --good-text: #0ca30c;
+  }
+  .theme-btn { cursor: pointer; background: var(--surface-1); font: inherit; font-size: 12px; font-weight: 600; }
   * { box-sizing: border-box; }
   body {
     margin: 0; background: var(--page); color: var(--ink-1);
@@ -89,6 +98,37 @@
     padding: 6px 10px; font-size: 12px; max-width: 260px;
   }
   .tooltip b { font-variant-numeric: tabular-nums; }
+  .clickable { cursor: pointer; }
+  tr.clickable:hover td { background: rgba(42,120,214,0.08); }
+  .bar.clickable:hover { opacity: 0.82; }
+  /* Mini-fenêtre de détail */
+  #modal-overlay {
+    position: fixed; inset: 0; z-index: 20; display: none;
+    background: rgba(0,0,0,0.35); backdrop-filter: blur(3px);
+    align-items: flex-start; justify-content: center; padding: 8vh 16px;
+  }
+  #modal-overlay.open { display: flex; }
+  #modal {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 16px; box-shadow: 0 24px 60px rgba(0,0,0,0.3);
+    max-width: 640px; width: 100%; max-height: 78vh; overflow: auto;
+    padding: 20px 22px; animation: pop .18s ease-out;
+  }
+  @keyframes pop { from { transform: scale(.97) translateY(6px); opacity: 0; } }
+  #modal h3 { margin: 0 0 2px; font-size: 16px; font-weight: 650; }
+  #modal .sub { margin: 0 0 14px; }
+  #modal-close {
+    float: right; border: none; background: none; color: var(--ink-muted);
+    font-size: 20px; cursor: pointer; line-height: 1; padding: 2px 6px; border-radius: 8px;
+  }
+  #modal-close:hover { color: var(--ink-1); background: rgba(128,128,128,0.15); }
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px;
+        font-size: 13px; margin-bottom: 14px; }
+  .kv dt { color: var(--ink-muted); }
+  .kv dd { margin: 0; font-variant-numeric: tabular-nums; }
+  .meter { height: 8px; border-radius: 4px; background: var(--series-1-track);
+           overflow: hidden; margin: 4px 0 12px; }
+  .meter > div { height: 100%; border-radius: 4px; background: var(--series-1); }
   footer { margin-top: 20px; color: var(--ink-muted); font-size: 12px; }
   footer a { color: var(--ink-2); }
   @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
@@ -102,6 +142,7 @@
     <span class="badge" id="origin-badge"></span>
     <span class="badge" id="date-badge"></span>
     <span style="flex:1"></span>
+    <button class="badge theme-btn" id="theme" title="Basculer clair / sombre / auto"></button>
     <a class="badge" href="explorer.html" style="text-decoration:none">Explorateur de données →</a>
   </header>
   <p class="sub">Data Mesh bancaire — trading, trésorerie, risque, audit continu, gouvernance fédérée.</p>
@@ -151,10 +192,39 @@
   <footer id="footer"></footer>
 </div>
 <div class="tooltip" id="tooltip"></div>
+<div id="modal-overlay">
+  <div id="modal" role="dialog" aria-modal="true">
+    <button id="modal-close" title="Fermer (Échap)">×</button>
+    <h3 id="modal-title"></h3>
+    <p class="sub" id="modal-sub"></p>
+    <div id="modal-body"></div>
+  </div>
+</div>
 
 <script>
 "use strict";
 const $ = (s) => document.querySelector(s);
+
+/* Thème : auto (système) → clair → sombre, persistant entre les pages */
+const THEMES = ["auto", "light", "dark"];
+const THEME_LABELS = { auto: "◐ Auto", light: "☀ Clair", dark: "● Sombre" };
+function applyTheme(theme) {
+  if (theme === "auto") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", theme);
+  const btn = $("#theme");
+  if (btn) btn.textContent = THEME_LABELS[theme];
+}
+let theme = localStorage.getItem("fcc-theme") || "auto";
+applyTheme(theme);
+addEventListener("DOMContentLoaded", () => {
+  applyTheme(theme);
+  $("#theme").onclick = () => {
+    theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+    localStorage.setItem("fcc-theme", theme);
+    applyTheme(theme);
+  };
+});
+
 const SVGNS = "http://www.w3.org/2000/svg";
 const embedded = JSON.parse($("#fcc-data").textContent);
 const LIVE = embedded === null;
@@ -168,6 +238,9 @@ function fmtEur(v) {
   return v.toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " €";
 }
 const fmtMoney = (m) => m.amount.toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " " + m.currency;
+/* Dates affichées JJ/MM/AAAA (stockage ISO 8601 UTC, invariant n°2) */
+const fmtDate = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+const fmtDateTime = (iso) => fmtDate(iso) + (iso.length > 10 ? " " + iso.slice(11, 16) : "");
 
 function el(name, attrs, text) {
   const node = document.createElementNS(SVGNS, name);
@@ -199,7 +272,102 @@ function niceMax(v) {
   return 10 * p;
 }
 
-function columnChart(container, rows) {
+/* ------- Mini-fenêtre de détail (clic sur un élément du dashboard) ------- */
+let DATA = null;
+function showModal(title, sub, html) {
+  $("#modal-title").textContent = title;
+  $("#modal-sub").textContent = sub || "";
+  $("#modal-body").innerHTML = html;
+  $("#modal-overlay").classList.add("open");
+}
+function closeModal() { $("#modal-overlay").classList.remove("open"); }
+addEventListener("DOMContentLoaded", () => {
+  $("#modal-close").onclick = closeModal;
+  $("#modal-overlay").onclick = (e) => { if (e.target.id === "modal-overlay") closeModal(); };
+});
+addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+const kv = (pairs) => '<dl class="kv">' +
+  pairs.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("") + "</dl>";
+const miniTable = (headers, rows) =>
+  '<div style="overflow-x:auto"><table><tr>' +
+  headers.map((h) => `<th>${h}</th>`).join("") + "</tr>" +
+  rows.map((r) => "<tr>" + r.map((v, i) =>
+    `<td class="${typeof v === "string" && v.startsWith("§") ? "num" : ""}">${
+      typeof v === "string" && v.startsWith("§") ? v.slice(1) : v}</td>`).join("") +
+    "</tr>").join("") + "</table></div>";
+const classOf = (t) => DATA.instrument_classes[t.instrument_id] || t.instrument_id;
+const tradeRows = (list, max = 12) =>
+  miniTable(["Heure", "Instrument", "Contrepartie", "Notionnel", "Statut"],
+    list.slice(0, max).map((t) => [t.executed_at.slice(11, 16),
+      `<code>${t.instrument_id}</code>`,
+      DATA.counterparty_names[t.counterparty_lei] || t.counterparty_lei,
+      "§" + fmtMoney(t.notional), t.status])) +
+  (list.length > max ? `<p class="sub" style="margin-top:8px">… et ${list.length - max} autres — tout est requêtable dans l'<a href="explorer.html">explorateur</a>.</p>` : "");
+
+function hourDetail(hour) {
+  const list = DATA.trades.filter((t) => t.executed_at.slice(11, 13) + "h" === hour);
+  showModal(`Trades de ${hour}`,
+    `${list.length} exécution(s) — journée du ${fmtDate(DATA.business_date)}`,
+    tradeRows(list));
+}
+function counterpartyDetail(e) {
+  const list = DATA.trades.filter((t) => t.counterparty_lei === e.lei && t.status === "executed")
+    .sort((a, b) => b.notional.amount - a.notional.amount);
+  showModal(e.counterparty, `LEI ${e.lei}`,
+    kv([["Exposition (notionnel vif)", fmtEur(e.eur)],
+        ["Utilisation de la limite", (e.limit_utilisation * 100).toFixed(1) + " %"],
+        ["Trades vifs", fmtInt(list.length)]]) +
+    `<div class="meter"><div style="width:${Math.min(100, e.limit_utilisation * 100)}%"></div></div>` +
+    "<p class='sub'>Plus gros trades vifs :</p>" + tradeRows(list, 6));
+}
+function classDetail(label) {
+  const list = DATA.trades.filter((t) => t.status !== "cancelled" && classOf(t) === label);
+  const perInstrument = {};
+  for (const t of list) {
+    const p = perInstrument[t.instrument_id] ||= { n: 0, amount: 0, ccy: t.notional.currency };
+    p.n++; p.amount += t.notional.amount;
+  }
+  showModal(label, `${list.length} trade(s) non annulés`,
+    miniTable(["Instrument", "Trades", "Notionnel cumulé"],
+      Object.entries(perInstrument).sort((a, b) => b[1].amount - a[1].amount)
+        .map(([id, p]) => [`<code>${id}</code>`, "§" + fmtInt(p.n),
+          "§" + fmtMoney({ amount: p.amount, currency: p.ccy })])));
+}
+function productDetail(urn) {
+  const c = DATA.catalog.find((x) => x.urn === urn);
+  const p = DATA.products[urn] || {};
+  showModal(c.name, c.urn, kv([
+    ["Domaine", c.domain], ["Entité (ontologie)", `<code>${c.entity}</code>`],
+    ["Version de contrat", c.version], ["Classification", c.classification],
+    ["SLO fraîcheur", fmtInt(c.freshness_slo_seconds) + " s"],
+    ["Records du jour", fmtInt(p.records ?? 0)],
+    ["Violations de schéma", fmtInt(p.schema_violations ?? 0)],
+    ["Disjoncteur", p.breaker_state || "—"], ["Assertion d'audit", p.assertion || "—"],
+    ["Sources (lineage)", c.sources.length
+      ? c.sources.map((s) => `<code>${s.replace("urn:fcc:", "")}</code>`).join("<br>")
+      : "produit source"],
+  ]));
+}
+function tradeDetail(t) {
+  showModal(t.trade_id, classOf(t), kv([
+    ["Instrument", `<code>${t.instrument_id}</code>`],
+    ["Contrepartie", (DATA.counterparty_names[t.counterparty_lei] || "") + ` — LEI ${t.counterparty_lei}`],
+    ["Notionnel", fmtMoney(t.notional)], ["Statut", t.status],
+    ["Exécuté le (UTC)", fmtDateTime(t.executed_at)],
+    ["Référence de règlement", `STL-${t.trade_id}`],
+  ]));
+}
+function cashDetail(c) {
+  showModal(c.account_id, "Compte nostro — " + c.balance.currency, kv([
+    ["Solde", fmtMoney(c.balance)],
+    ["Date de valeur", fmtDate(c.value_date)],
+    ["Réconcilié", c.reconciled ? "oui — trades ↔ relevés complets" : "non — écart en suspens"],
+    ["Lot de règlement", `<code>${c.settlement_ref}</code>`],
+  ]));
+}
+
+function columnChart(container, rows, onClick) {
   container.textContent = "";
   const W = 960, H = 240, top = 12, bottom = 26, left = 40, right = 8;
   const plotW = W - left - right, plotH = H - top - bottom;
@@ -218,8 +386,9 @@ function columnChart(container, rows) {
   rows.forEach((row, i) => {
     const h = (row.count / max) * plotH;
     const x = left + band * i + (band - bw) / 2;
-    const bar = el("path", { class: "bar", d: barPath(x, top + plotH - h, bw, h, false) });
-    hover(bar, `${row.hour} — <b>${fmtInt(row.count)}</b> trades`);
+    const bar = el("path", { class: "bar clickable", d: barPath(x, top + plotH - h, bw, h, false) });
+    hover(bar, `${row.hour} — <b>${fmtInt(row.count)}</b> trades<br><span style="opacity:.7">cliquer pour le détail</span>`);
+    if (onClick) bar.addEventListener("click", () => onClick(row));
     svg.appendChild(bar);
     if (row === peak)
       svg.appendChild(el("text", { class: "val", x: x + bw / 2, y: top + plotH - h - 6,
@@ -240,8 +409,9 @@ function hbarChart(container, rows, opts) {
     const y = i * rowH;
     const w = Math.max(6, (row.value / max) * (W - left - right));
     svg.appendChild(el("text", { class: "cat", x: left, y: y + labelH - 3 }, row.label));
-    const bar = el("path", { class: "bar", d: barPath(left, y + labelH, w, 12, true) });
-    hover(bar, row.tip);
+    const bar = el("path", { class: "bar clickable", d: barPath(left, y + labelH, w, 12, true) });
+    hover(bar, row.tip + '<br><span style="opacity:.7">cliquer pour le détail</span>');
+    if (row.onClick) bar.addEventListener("click", row.onClick);
     svg.appendChild(bar);
     svg.appendChild(el("text", { class: "val", x: left + w + 8, y: y + labelH + 10 },
       fmtEur(row.value)));
@@ -264,11 +434,12 @@ function tile(label, value, note) {
 }
 
 function render(data) {
+  DATA = data;
   const simulated = data.origin !== "production";
   $("#origin-badge").innerHTML =
     `<span class="dot" style="background:${simulated ? "var(--warning)" : "var(--good)"}"></span>` +
     (simulated ? "⚠ Données simulées — G8 : publication bloquée" : "✓ Données de production");
-  $("#date-badge").textContent = "Journée du " + data.business_date;
+  $("#date-badge").textContent = "Journée du " + fmtDate(data.business_date);
 
   const k = data.kpis;
   $("#kpis").innerHTML =
@@ -280,18 +451,20 @@ function render(data) {
     tile("Chaîne d'audit", k.audit_chain_intact ? "Intègre" : "CORROMPUE",
       "journal chaîné SHA-256");
 
-  columnChart($("#chart-hours"), data.trades_by_hour);
+  columnChart($("#chart-hours"), data.trades_by_hour, (row) => hourDetail(row.hour));
   hbarChart($("#chart-expo"), data.exposures.map((e) => ({
     label: e.counterparty, value: e.eur,
     tip: `${e.counterparty}<br>LEI ${e.lei}<br><b>${fmtEur(e.eur)}</b> — ${(e.limit_utilisation * 100).toFixed(1)} % de la limite`,
+    onClick: () => counterpartyDetail(e),
   })), { aria: "Exposition par contrepartie en euros" });
   hbarChart($("#chart-class"), data.notional_by_class.map((c) => ({
     label: c.label, value: c.eur, tip: `${c.label}<br><b>${fmtEur(c.eur)}</b>`,
+    onClick: () => classDetail(c.label),
   })), { aria: "Notionnel par classe d'actifs en euros" });
 
   $("#products").innerHTML =
     "<tr><th>Data Product</th><th class='num'>Records</th><th class='num'>Violations schéma</th><th>Disjoncteur</th><th>Assertion d'audit</th></tr>" +
-    Object.entries(data.products).map(([urn, p]) => `<tr>
+    Object.entries(data.products).map(([urn, p]) => `<tr class="clickable" data-urn="${urn}">
       <td><code>${urn.replace("urn:fcc:", "")}</code></td>
       <td class="num">${fmtInt(p.records)}</td>
       <td class="num">${fmtInt(p.schema_violations)}</td>
@@ -301,7 +474,7 @@ function render(data) {
 
   $("#cash").innerHTML =
     "<tr><th>Compte</th><th class='num'>Solde</th><th>Réconcilié</th></tr>" +
-    data.cash.map((c) => `<tr>
+    data.cash.map((c, i) => `<tr class="clickable" data-i="${i}">
       <td>${c.account_id}</td>
       <td class="num">${fmtMoney(c.balance)}</td>
       <td>${c.reconciled ? chip("good", "oui") : chip("warning", "écart")}</td>
@@ -309,12 +482,19 @@ function render(data) {
 
   $("#trades").innerHTML =
     "<tr><th>Trade</th><th>Instrument</th><th class='num'>Notionnel</th><th>Statut</th></tr>" +
-    data.recent_trades.map((t) => `<tr>
+    data.recent_trades.map((t, i) => `<tr class="clickable" data-i="${i}">
       <td>${t.executed_at.slice(11, 16)}</td>
       <td><code>${t.instrument_id}</code></td>
       <td class="num">${fmtMoney(t.notional)}</td>
       <td>${t.status}</td>
     </tr>`).join("");
+
+  document.querySelectorAll("#products tr.clickable").forEach((tr) =>
+    tr.addEventListener("click", () => productDetail(tr.dataset.urn)));
+  document.querySelectorAll("#cash tr.clickable").forEach((tr) =>
+    tr.addEventListener("click", () => cashDetail(data.cash[tr.dataset.i])));
+  document.querySelectorAll("#trades tr.clickable").forEach((tr) =>
+    tr.addEventListener("click", () => tradeDetail(data.recent_trades[tr.dataset.i])));
 
   $("#footer").innerHTML =
     `${data.g8_refusals.length} publication(s) réglementaire(s) refusée(s) par la règle G8 (provenance ${data.origin}) — ` +

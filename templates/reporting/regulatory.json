@@ -1,0 +1,16 @@
+{
+  "name": "Reporting réglementaire",
+  "department": "regulatory",
+  "classification": "restricted",
+  "roles": ["regulatory-officer", "auditor"],
+  "title": "Rapport réglementaire — Expositions par contrepartie",
+  "dataset": "exposures",
+  "columns": [
+    {"key": "counterparty_lei", "label": "LEI contrepartie"},
+    {"key": "exposure_eur", "label": "Exposition (EUR)"},
+    {"key": "limit_utilisation", "label": "Utilisation limite"},
+    {"key": "computed_at", "label": "Calculée le (UTC)"}
+  ],
+  "required_assertions": ["existence", "completeness", "rights_obligations",
+                          "valuation", "accuracy", "presentation"]
+}

@@ -4,6 +4,8 @@
     python3 -m mesh validate                      # valide tous les contrats
     python3 -m mesh simulate 2026-07-09 [seed] [n_trades]
                                                   # rejoue un jour ouvré simulé
+    python3 -m mesh backfill 2026-06-01 2026-07-09 [seed] [n_trades]
+                                                  # rejoue une plage (jours ouvrés)
 """
 
 import json
@@ -33,10 +35,41 @@ def _simulate(argv):
     return 0
 
 
+def _backfill(argv):
+    import datetime
+
+    from sim.generator import SimulatedTradingSource, simulate_bank_statements
+
+    from .pipeline import run_business_day
+
+    if len(argv) < 2:
+        print("usage : python3 -m mesh backfill <début> <fin> [seed] [n_trades]",
+              file=sys.stderr)
+        return 2
+    start = datetime.date.fromisoformat(argv[0])
+    end = datetime.date.fromisoformat(argv[1])
+    seed = int(argv[2]) if len(argv) > 2 else 42
+    n_trades = int(argv[3]) if len(argv) > 3 else 250
+    day, count = start, 0
+    while day <= end:
+        if day.weekday() < 5:  # jours ouvrés uniquement
+            run_business_day(
+                day.isoformat(),
+                trading_source=SimulatedTradingSource(seed=seed, n_trades=n_trades),
+                statements_source=lambda t: simulate_bank_statements(t, seed=seed),
+            )
+            count += 1
+        day += datetime.timedelta(days=1)
+    print(f"{count} jours ouvrés simulés ({start} → {end})")
+    return 0
+
+
 def main(argv):
     command = argv[0] if argv else "catalog"
     if command == "simulate":
         return _simulate(argv[1:])
+    if command == "backfill":
+        return _backfill(argv[1:])
     try:
         registry = Registry()
     except ContractError as exc:
