@@ -18,6 +18,7 @@ from .sources import make_batch
 NOSTRO_ACCOUNTS = {"EUR": ("1010", "Nostro EUR"), "USD": ("1011", "Nostro USD"),
                    "GBP": ("1012", "Nostro GBP")}
 EQUITY = ("5000", "Capitaux propres")
+FEE_INCOME = ("7000", "Commissions perçues")
 SUSPENSE = ("9990", "Compte d'attente")
 
 
@@ -29,7 +30,7 @@ def _asset_account(instrument_id):
     return ("3010", "Titres")
 
 
-def derive_ledger(trades_batch, statements_batch, business_date):
+def derive_ledger(trades_batch, statements_batch, business_date, fees_batch=None):
     """Écritures du jour : trades réglés ↔ relevés, en partie double."""
     statements = {s["reference"]: s for s in statements_batch["records"]}
     matched_refs = set()
@@ -73,6 +74,12 @@ def derive_ledger(trades_batch, statements_batch, business_date):
         else:
             # règlement sans cash constaté → attente (signal d'audit)
             book(SUSPENSE, asset, trade["notional"]["amount"], currency, reference)
+
+    for fee in (fees_batch["records"] if fees_batch else []):
+        currency = fee["amount"]["currency"]
+        # encaissement de la commission : débit nostro / crédit produits
+        book(NOSTRO_ACCOUNTS[currency], FEE_INCOME, fee["amount"]["amount"],
+             currency, fee["fee_id"])
 
     for reference, statement in statements.items():
         if reference in matched_refs:

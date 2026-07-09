@@ -88,4 +88,24 @@ def build_payload(business_date, seed=42, n_trades=250):
         "instrument_classes": {i: CLASS_LABELS[c] for i, c in CLASS_BY_INSTRUMENT.items()},
         "counterparty_names": COUNTERPARTY_NAMES,
         "catalog": Registry().catalog(),
+        "kris": _kris(summary, cash, exposures, trades, statements, business_date),
+    }
+
+
+def _kris(summary, cash, exposures, trades, statements, business_date):
+    """Indicateurs de risque (SCI) — seuils de docs/audit-suisse.md §2."""
+    from mesh.accounting import derive_ledger, trial_balance
+    from mesh.fees import derive_fees
+    ledger = derive_ledger(trades, statements, business_date,
+                           fees_batch=derive_fees(trades, business_date))
+    balance = trial_balance(ledger)
+    max_util = max((r["limit_utilisation"] for r in exposures["records"]), default=0.0)
+    return {
+        "max_limit_utilisation": max_util,
+        "unreconciled_accounts": sum(1 for r in cash["records"] if not r["reconciled"]),
+        "schema_violations": sum(p["schema_violations"] for p in summary["products"].values()),
+        "suspense_eur": round(sum(abs(v) for v in balance["suspense"].values()), 2),
+        "balanced": balance["balanced"],
+        "qualified_assertions": sum(1 for p in summary["products"].values()
+                                    if p["assertion"] != "certified"),
     }

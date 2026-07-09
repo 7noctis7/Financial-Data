@@ -135,7 +135,7 @@ class TestPipelineEndToEnd(unittest.TestCase):
             )
             self.assertEqual(summary["origin"], SIMULATED)
             self.assertTrue(summary["audit_chain_intact"])
-            self.assertEqual(len(summary["products"]), 4)
+            self.assertEqual(len(summary["products"]), 5)
             trading = summary["products"]["urn:fcc:trading:executed-trades"]
             self.assertEqual(trading["records"], 250)
             self.assertEqual(trading["schema_violations"], 0)
@@ -143,7 +143,7 @@ class TestPipelineEndToEnd(unittest.TestCase):
             # G8 : aucune vraie soumission depuis du simulé, refus tracés
             self.assertTrue(all(f["dry_run"] for f in summary["filings"]))
             self.assertEqual(len(summary["g8_refusals"]), len(summary["filings"]))
-            for name in ("trades", "cash-positions", "exposures", "ledger",
+            for name in ("trades", "cash-positions", "exposures", "ledger", "fees",
                          "audit-journal", "summary"):
                 self.assertTrue((Path(tmp) / f"{name}.json").exists())
 

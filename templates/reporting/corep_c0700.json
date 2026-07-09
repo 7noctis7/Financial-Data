@@ -1,0 +1,61 @@
+{
+  "name": "COREP C 07.00 — Risque de crédit (approche standard)",
+  "department": "regulatory",
+  "norm_ref": "Règlement (UE) n°575/2013 (CRR), art. 111–134 — approche standard ; maquette COREP_1, onglet 7 (C 07.00)",
+  "classification": "restricted",
+  "roles": [
+    "regulatory-officer",
+    "auditor"
+  ],
+  "title": "C 07.00 — Exigences de fonds propres : risque de crédit (SA)",
+  "dataset": "corep_c0700",
+  "columns": [
+    {
+      "key": "k",
+      "label": "Ligne"
+    },
+    {
+      "key": "exposure_class",
+      "label": "Contrepartie / classe"
+    },
+    {
+      "key": "exposure_eur",
+      "label": "Valeur exposée (EUR)"
+    },
+    {
+      "key": "risk_weight",
+      "label": "Pondération"
+    },
+    {
+      "key": "rwa_eur",
+      "label": "RWA (EUR)"
+    },
+    {
+      "key": "own_funds_req_eur",
+      "label": "Exigence 8 % (EUR)"
+    }
+  ],
+  "required_assertions": [
+    "existence",
+    "completeness",
+    "valuation",
+    "accuracy"
+  ],
+  "controls": [
+    {
+      "name": "C0700: TOTAL RWA = somme des lignes",
+      "type": "recompute_total",
+      "key": "k",
+      "amount_key": "rwa_eur",
+      "total": "TOTAL",
+      "sum_of": [
+        "E0",
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ]
+}

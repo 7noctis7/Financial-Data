@@ -263,6 +263,33 @@ class ReportGenerator:
             summary = [f"Synthese : total actifs {total:,.2f} EUR ; bouclage "
                        "bilan/grand livre verifie au centime (voir annexe)."
                        .replace(",", " ")]
+        elif dataset == "corep_c0700":
+            from mesh.derivations import derive_exposures as _dx
+            from sim.generator import COUNTERPARTY_NAMES
+            batch = _dx(trades, business_date)
+            urn = "urn:fcc:risk:exposures"
+            rows, total_rwa = [], 0.0
+            for i, r in enumerate(sorted(batch["records"],
+                                         key=lambda x: -x["exposure"]["amount"])):
+                # CRR SA v1 : etablissement bancaire regule => 20 %, sinon 100 %
+                weight = 0.20 if r["counterparty_lei"] in COUNTERPARTY_NAMES else 1.00
+                rwa = round(r["exposure"]["amount"] * weight, 2)
+                total_rwa = round(total_rwa + rwa, 2)
+                rows.append({"k": f"E{i}", "exposure_class":
+                             COUNTERPARTY_NAMES.get(r["counterparty_lei"],
+                                                    r["counterparty_lei"])
+                             + " (etablissement)",
+                             "exposure_eur": r["exposure"]["amount"],
+                             "risk_weight": f"{weight:.0%}",
+                             "rwa_eur": rwa,
+                             "own_funds_req_eur": round(rwa * 0.08, 2)})
+            rows.append({"k": "TOTAL", "exposure_class": "TOTAL",
+                         "exposure_eur": round(sum(x["exposure_eur"] for x in rows), 2),
+                         "risk_weight": "", "rwa_eur": total_rwa,
+                         "own_funds_req_eur": round(total_rwa * 0.08, 2)})
+            summary = [f"Synthese : RWA total {total_rwa:,.2f} EUR ; exigence de fonds".replace(",", " "),
+                       f"propres (8 %) : {total_rwa * 0.08:,.2f} EUR. Ponderation v1 :".replace(",", " "),
+                       "20 % etablissements bancaires reguels, 100 % autres (CRR art. 120-121)."]
         elif dataset in ("balance_sheet_econ", "pnl_v1"):
             batch, rows, control_context, summary = _accounting_statement(
                 trades, business_date, seed, dataset)
@@ -334,16 +361,19 @@ def _finrep_f0101(trades, business_date, seed, lang):
             ("010", "040", "050", "060", "080", "360", "380")]
     # Bouclage de périmètre : le total actif doit égaler, au centime, les
     # capitaux propres du grand livre (solde créditeur du compte 5000).
-    control_context = {"ledger_equity_eur": round(-balances.get("5000", 0.0), 2)}
+    control_context = {"ledger_equity_eur":
+                       round(-balances.get("5000", 0.0) - balances.get("7000", 0.0), 2)}
     return ledger, rows, control_context
 
 
 def _ledger_balances_eur(trades, business_date, seed):
     from mesh.accounting import derive_ledger, trial_balance
     from mesh.derivations import FX_TO_EUR
+    from mesh.fees import derive_fees
     from sim.generator import simulate_bank_statements
     statements = simulate_bank_statements(trades, seed=seed)
-    ledger = derive_ledger(trades, statements, business_date)
+    ledger = derive_ledger(trades, statements, business_date,
+                           fees_batch=derive_fees(trades, business_date))
     balances = {}
     for account in trial_balance(ledger)["accounts"]:
         eur = account["balance"] * FX_TO_EUR[account["currency"]]
@@ -359,7 +389,8 @@ def _accounting_statement(trades, business_date, seed, dataset):
     placements = round(balances.get("3010", 0.0) + balances.get("3020", 0.0)
                        + balances.get("3021", 0.0), 2)
     attente = round(balances.get("9990", 0.0), 2)
-    equity = round(-balances.get("5000", 0.0), 2)
+    fee_income = round(-balances.get("7000", 0.0), 2)
+    equity = round(-balances.get("5000", 0.0) + fee_income, 2)
     if dataset == "balance_sheet_econ":
         endettement_net = round(0.0 - placements - disponible, 2)
         actif_eco = round(0.0 + attente, 2)  # immobilisations 0 + BFR HE
@@ -396,19 +427,21 @@ def _accounting_statement(trades, business_date, seed, dataset):
         return ledger, rows, context, summary
     # PnL v1 : aucun flux de revenus au grand livre — etat honnete
     rows = [
-        {"k": "CA", "poste": "CHIFFRE D'AFFAIRES", "montant_eur": 0.0,
-         "source": "hors perimetre v1 - domaine fees:revenues requis"},
+        {"k": "CA", "poste": "CHIFFRE D'AFFAIRES (commissions percues)",
+         "montant_eur": fee_income,
+         "source": "solde crediteur 7000 - courtage derive des trades (bareme mesh/fees.py)"},
         {"k": "CHARGES", "poste": "Charges d'exploitation", "montant_eur": 0.0,
-         "source": "hors perimetre v1"},
-        {"k": "EBE", "poste": "EXCEDENT BRUT D'EXPLOITATION", "montant_eur": 0.0,
-         "source": "= CA - charges (tous deux hors perimetre v1)"},
+         "source": "hors perimetre v1 (salaires, frais generaux non modelises)"},
+        {"k": "EBE", "poste": "EXCEDENT BRUT D'EXPLOITATION",
+         "montant_eur": fee_income, "source": "= CA - charges"},
     ]
+    context = {"fee_income": fee_income}
     summary = [
-        "Etat volontairement vide : le grand livre v1 n'enregistre aucun flux de",
-        "revenus ou de charges (perimetre salle de marches, notionnels uniquement).",
-        "Le domaine Frais & Commissions (fees:revenues) alimentera cet etat.",
+        f"Synthese : commissions de courtage {fee_income:,.2f} EUR (bareme en points".replace(",", " "),
+        "de base par classe d'instrument, derive de chaque trade non annule).",
+        "Charges d'exploitation hors perimetre v1 : EBE = CA.",
     ]
-    return ledger, rows, None, summary
+    return ledger, rows, context, summary
 
 
 def demo_assertions(log, product_urn, business_date, origin,

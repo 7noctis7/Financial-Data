@@ -1,0 +1,50 @@
+{
+  "urn": "urn:fcc:fees:revenues",
+  "domain": "fees",
+  "name": "Fees & Commissions",
+  "version": "1.0.0",
+  "owner": "client-lifecycle@fcc",
+  "description": "Commissions de courtage dérivées des trades exécutés (barème en points de base par classe d'actifs, versionné dans mesh/fees.py). Alimente le compte 7000 du grand livre et le chiffre d'affaires du PnL.",
+  "output_schema": {
+    "entity": "Fee",
+    "fields": [
+      {
+        "name": "fee_id",
+        "type": "string"
+      },
+      {
+        "name": "trade_id",
+        "type": "string",
+        "ontology_term": "Trade"
+      },
+      {
+        "name": "fee_type",
+        "type": "string"
+      },
+      {
+        "name": "amount",
+        "type": "money"
+      },
+      {
+        "name": "booked_at",
+        "type": "timestamp"
+      }
+    ]
+  },
+  "slo": {
+    "freshness_seconds": 86400,
+    "max_violation_rate": 0.0,
+    "cooldown_seconds": 3600
+  },
+  "access": {
+    "classification": "internal",
+    "roles": [
+      "treasury-ops",
+      "auditor",
+      "regulatory-officer"
+    ]
+  },
+  "sources": [
+    "urn:fcc:trading:executed-trades"
+  ]
+}
