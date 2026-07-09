@@ -1,0 +1,18 @@
+{
+  "name": "FINREP F 01.01 — Balance sheet: assets (EN)",
+  "department": "regulatory",
+  "norm_ref": "Commission Implementing Regulation (EU) 2021/451 — FINREP, Annex III, template F 01.01; instructions Annex V (maquette : templates/reporting/FINREP-EN)",
+  "classification": "restricted",
+  "roles": ["regulatory-officer", "auditor"],
+  "title": "F 01.01 — Statement of financial position: Assets",
+  "dataset": "finrep_f0101",
+  "lang": "en",
+  "columns": [
+    {"key": "row_ref", "label": "Row"},
+    {"key": "item", "label": "Item"},
+    {"key": "reference", "label": "References"},
+    {"key": "amount_eur", "label": "Carrying amount (EUR)"}
+  ],
+  "required_assertions": ["existence", "completeness", "rights_obligations",
+                          "valuation", "accuracy", "presentation"]
+}

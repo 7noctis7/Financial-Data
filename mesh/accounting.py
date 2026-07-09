@@ -12,11 +12,12 @@ Principes (alignés Manuel suisse d'audit, docs/audit-suisse.md §3) :
   premiers KRI d'un auditeur.
 """
 
-from .derivations import combine_origin
+from .derivations import OPENING_BALANCES_EUR_ACCOUNTS, combine_origin
 from .sources import make_batch
 
 NOSTRO_ACCOUNTS = {"EUR": ("1010", "Nostro EUR"), "USD": ("1011", "Nostro USD"),
                    "GBP": ("1012", "Nostro GBP")}
+EQUITY = ("5000", "Capitaux propres")
 SUSPENSE = ("9990", "Compte d'attente")
 
 
@@ -47,6 +48,11 @@ def derive_ledger(trades_batch, statements_batch, business_date):
                 "booked_at": f"{business_date}T18:45:00Z",
             })
         n += 1
+
+    # Soldes d'ouverture : les nostros existent avant les flux du jour —
+    # contrepartie en capitaux propres (sinon un bilan de flux net à zéro).
+    for _account_id, (currency, opening) in OPENING_BALANCES_EUR_ACCOUNTS.items():
+        book(NOSTRO_ACCOUNTS[currency], EQUITY, opening, currency, "OPENING")
 
     for trade in trades_batch["records"]:
         if trade["status"] != "settled":
