@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Explorateur de données — Financial Command Center</title>
+<style>
+  :root {
+    --surface-1: #fcfcfb; --page: #f9f9f7;
+    --ink-1: #0b0b0b; --ink-2: #52514e; --ink-muted: #898781;
+    --grid: #e1e0d9; --baseline: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --accent: #2a78d6; --accent-wash: rgba(42,120,214,0.10);
+    --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface-1: #1a1a19; --page: #0d0d0d;
+      --ink-1: #ffffff; --ink-2: #c3c2b7; --ink-muted: #898781;
+      --grid: #2c2c2a; --baseline: #383835;
+      --border: rgba(255,255,255,0.10);
+      --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--page); color: var(--ink-1);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 20px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 4px; }
+  h1 { font-size: 20px; font-weight: 650; margin: 0; }
+  nav a { color: var(--ink-2); text-decoration: none; font-size: 13px;
+          padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px; }
+  nav a:hover { background: var(--accent-wash); }
+  .sub { color: var(--ink-2); margin: 0 0 18px; }
+  .layout { display: grid; grid-template-columns: 230px 1fr; gap: 14px; align-items: start; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+  .panel { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; }
+  .side { padding: 12px; position: sticky; top: 16px; }
+  .side h2 { font-size: 12px; font-weight: 600; color: var(--ink-muted);
+             text-transform: uppercase; letter-spacing: .04em; margin: 4px 6px 8px; }
+  .table-btn {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+    width: 100%; text-align: left; padding: 8px 10px; margin: 2px 0;
+    border: none; border-radius: 8px; background: none; color: var(--ink-1);
+    font: inherit; cursor: pointer;
+  }
+  .table-btn:hover { background: var(--accent-wash); }
+  .table-btn.active { background: var(--accent-wash); font-weight: 600; }
+  .table-btn .n { color: var(--ink-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .main { padding: 16px; min-width: 0; }
+  .modebar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 9px; padding: 2px; background: var(--page); }
+  .seg button {
+    border: none; background: none; color: var(--ink-2); font: inherit; font-weight: 600;
+    padding: 5px 14px; border-radius: 7px; cursor: pointer;
+  }
+  .seg button.on { background: var(--surface-1); color: var(--ink-1);
+                   box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .spacer { flex: 1; }
+  .ghost {
+    border: 1px solid var(--border); background: none; color: var(--ink-2);
+    font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 8px; cursor: pointer;
+  }
+  .ghost:hover { background: var(--accent-wash); color: var(--ink-1); }
+  .filterbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .filterbar input[type="search"] {
+    flex: 1 1 220px; min-width: 160px; padding: 8px 12px;
+    border: 1px solid var(--border); border-radius: 9px;
+    background: var(--page); color: var(--ink-1); font: inherit;
+  }
+  input:focus, select:focus, textarea:focus, button:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 1px;
+  }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    border: 1px solid var(--border); border-radius: 999px;
+    background: var(--surface-1); padding: 4px 6px 4px 10px; font-size: 13px;
+  }
+  .chip select, .chip input {
+    border: none; background: none; color: var(--ink-1); font: inherit; font-size: 13px;
+  }
+  .chip input { width: 110px; border-bottom: 1px solid var(--grid); }
+  .chip .x { border: none; background: none; color: var(--ink-muted); cursor: pointer;
+             font-size: 15px; padding: 0 4px; border-radius: 50%; }
+  .chip .x:hover { color: var(--critical); }
+  #sqlbox { display: none; margin-bottom: 12px; }
+  #sqlbox textarea {
+    width: 100%; min-height: 96px; resize: vertical;
+    font: 13px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    padding: 12px; border: 1px solid var(--border); border-radius: 10px;
+    background: var(--page); color: var(--ink-1);
+  }
+  #sqlbox .row { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+  .primary {
+    border: none; border-radius: 8px; background: var(--accent); color: #fff;
+    font: inherit; font-weight: 600; padding: 7px 16px; cursor: pointer;
+  }
+  kbd { font: 11px ui-monospace, monospace; color: var(--ink-muted);
+        border: 1px solid var(--grid); border-radius: 4px; padding: 1px 5px; }
+  .samples { display: flex; flex-wrap: wrap; gap: 6px; }
+  .samples button {
+    border: 1px solid var(--border); border-radius: 999px; background: none;
+    color: var(--ink-2); font-size: 12px; padding: 3px 10px; cursor: pointer;
+  }
+  .samples button:hover { background: var(--accent-wash); color: var(--ink-1); }
+  .status { display: flex; gap: 14px; align-items: baseline; color: var(--ink-muted);
+            font-size: 12px; margin: 10px 2px; flex-wrap: wrap; }
+  .status .err { color: var(--critical); font-weight: 600; }
+  .tablewrap { overflow-x: auto; border: 1px solid var(--grid); border-radius: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
+  thead th {
+    position: sticky; top: 0; background: var(--surface-1);
+    text-align: left; color: var(--ink-2); font-weight: 600; font-size: 12px;
+    padding: 8px 12px; border-bottom: 1px solid var(--baseline); cursor: pointer;
+    user-select: none;
+  }
+  thead th .dir { color: var(--accent); }
+  tbody td { padding: 7px 12px; border-bottom: 1px solid var(--grid); }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--accent-wash); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pager { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 10px; }
+  .pager button { min-width: 32px; }
+  .banner {
+    border: 1px solid var(--border); border-left: 3px solid var(--warning);
+    border-radius: 10px; padding: 12px 14px; margin-bottom: 14px;
+    background: var(--surface-1); color: var(--ink-2); font-size: 13px;
+  }
+  .empty { padding: 40px; text-align: center; color: var(--ink-muted); }
+</style>
+</head>
+<body>
+<script id="fcc-explorer-config" type="application/json">null</script>
+<div class="wrap">
+  <header>
+    <h1>Explorateur de données</h1>
+    <nav><a href="index.html">← Dashboard</a></nav>
+  </header>
+  <p class="sub">Les Data Products du mesh, filtrables sans SQL — ou en SQL (DuckDB) pour aller plus loin.</p>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <div class="layout">
+    <aside class="panel side">
+      <h2>Tables</h2>
+      <div id="tables"></div>
+    </aside>
+
+    <section class="panel main">
+      <div class="modebar">
+        <div class="seg" role="tablist">
+          <button id="mode-simple" class="on">Explorer</button>
+          <button id="mode-sql">SQL</button>
+        </div>
+        <span class="spacer"></span>
+        <button class="ghost" id="csv">Exporter CSV</button>
+      </div>
+
+      <div id="simplebox">
+        <div class="filterbar">
+          <input type="search" id="search" placeholder="Rechercher dans la table…">
+          <button class="ghost" id="addfilter">＋ Filtre</button>
+          <span id="chips" style="display:contents"></span>
+        </div>
+      </div>
+
+      <div id="sqlbox">
+        <textarea id="sql" spellcheck="false"></textarea>
+        <div class="row">
+          <button class="primary" id="run">Exécuter</button>
+          <kbd>⌘⏎</kbd>
+          <span class="spacer"></span>
+          <div class="samples" id="samples"></div>
+        </div>
+      </div>
+
+      <div class="status" id="status"></div>
+      <div class="tablewrap"><table id="grid"></table></div>
+      <div class="pager" id="pager"></div>
+    </section>
+  </div>
+</div>
+
+<script type="module">
+"use strict";
+const $ = (s) => document.querySelector(s);
+const config = JSON.parse($("#fcc-explorer-config").textContent) || { mode: "api" };
+const PAGE = 50;
+
+/* ---------- backend : API locale ou DuckDB-WASM (site statique) ---------- */
+let runSQL, schemaTables;
+async function initBackend() {
+  if (config.mode !== "wasm") {
+    runSQL = async (sql) => {
+      const res = await fetch("/api/query", { method: "POST",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sql }) });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || res.statusText);
+      return body;
+    };
+    const res = await fetch("/api/schema");
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || res.statusText);
+    schemaTables = body.tables;
+    return;
+  }
+  const duckdb = await import("https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.29.0/+esm");
+  const bundle = await duckdb.selectBundle(duckdb.getJsDelivrBundles());
+  const worker = new Worker(URL.createObjectURL(
+    new Blob([`importScripts("${bundle.mainWorker}");`], { type: "text/javascript" })));
+  const db = new duckdb.AsyncDuckDB(new duckdb.VoidLogger(), worker);
+  await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+  const conn = await db.connect();
+  for (const [name, path] of Object.entries(config.tables)) {
+    await db.registerFileURL(`${name}.parquet`, new URL(path, location.href).href,
+      duckdb.DuckDBDataProtocol.HTTP, false);
+    await conn.query(`CREATE VIEW "${name}" AS SELECT * FROM read_parquet('${name}.parquet')`);
+  }
+  runSQL = async (sql) => {
+    const t0 = performance.now();
+    const result = await conn.query(sql);
+    const columns = result.schema.fields.map((f) => f.name);
+    const rows = result.toArray().map((r) => columns.map((c) => {
+      const v = r[c];
+      if (typeof v === "bigint") return Number(v);
+      if (v && typeof v.toJSON === "function") return v.toJSON();
+      return v;
+    }));
+    return { columns, rows: rows.slice(0, 500), truncated: rows.length > 500,
+             elapsed_ms: Math.round(performance.now() - t0) };
+  };
+  schemaTables = [];
+  for (const name of Object.keys(config.tables)) {
+    const d = await conn.query(`DESCRIBE "${name}"`);
+    const cols = d.toArray().map((r) => ({ name: r.column_name, type: r.column_type }));
+    const c = await conn.query(`SELECT count(*)::INT AS n FROM "${name}"`);
+    schemaTables.push({ name, columns: cols, rows: c.toArray()[0].n });
+  }
+}
+
+/* ------------------------------- état UI ------------------------------- */
+let current = null;      // table active
+let filters = [];        // {column, op, value}
+let sort = null;         // {column, dir}
+let page = 0;
+let lastResult = null;
+let sqlMode = false;
+
+const NUMTYPES = /INT|DOUBLE|FLOAT|DECIMAL|HUGE|BIGINT/i;
+const table = () => schemaTables.find((t) => t.name === current);
+const cols = () => (table() ? table().columns : []);
+const isNum = (name) => NUMTYPES.test((cols().find((c) => c.name === name) || {}).type || "");
+const qid = (s) => '"' + s.replace(/"/g, '""') + '"';
+const qval = (s) => "'" + String(s).replace(/'/g, "''") + "'";
+
+const OPS = {
+  "contient": (c, v) => `CAST(${qid(c)} AS VARCHAR) ILIKE ${qval("%" + v + "%")}`,
+  "=":  (c, v) => `${qid(c)} = ${isNum(c) && v !== "" && !isNaN(v) ? v : qval(v)}`,
+  "≠":  (c, v) => `${qid(c)} != ${isNum(c) && v !== "" && !isNaN(v) ? v : qval(v)}`,
+  "≥":  (c, v) => `${qid(c)} >= ${isNum(c) && !isNaN(v) ? v : qval(v)}`,
+  "≤":  (c, v) => `${qid(c)} <= ${isNum(c) && !isNaN(v) ? v : qval(v)}`,
+};
+
+function buildSQL(counting) {
+  const where = [];
+  const q = $("#search").value.trim();
+  if (q) {
+    const textCols = cols().filter((c) => !NUMTYPES.test(c.type)).map((c) => c.name);
+    if (textCols.length)
+      where.push("(" + textCols.map((c) =>
+        `CAST(${qid(c)} AS VARCHAR) ILIKE ${qval("%" + q + "%")}`).join(" OR ") + ")");
+  }
+  for (const f of filters)
+    if (f.value !== "") where.push(OPS[f.op](f.column, f.value));
+  let sql = (counting ? "SELECT count(*) AS n FROM " : "SELECT * FROM ") + qid(current);
+  if (where.length) sql += " WHERE " + where.join(" AND ");
+  if (!counting) {
+    if (sort) sql += ` ORDER BY ${qid(sort.column)} ${sort.dir}`;
+    sql += ` LIMIT ${PAGE} OFFSET ${page * PAGE}`;
+  }
+  return sql;
+}
+
+/* -------------------------------- rendu -------------------------------- */
+const fmt = (v) => {
+  if (v === null || v === undefined) return "—";
+  if (typeof v === "object") {
+    if (v.amount !== undefined && v.currency !== undefined)
+      return Number(v.amount).toLocaleString("fr-FR", { maximumFractionDigits: 2 }) + " " + v.currency;
+    return JSON.stringify(v);
+  }
+  if (typeof v === "number") return v.toLocaleString("fr-FR", { maximumFractionDigits: 4 });
+  if (typeof v === "boolean") return v ? "oui" : "non";
+  return String(v);
+};
+
+function renderTables() {
+  $("#tables").innerHTML = "";
+  for (const t of schemaTables) {
+    const b = document.createElement("button");
+    b.className = "table-btn" + (t.name === current ? " active" : "");
+    b.innerHTML = `<span>${t.name}</span><span class="n">${t.rows.toLocaleString("fr-FR")}</span>`;
+    b.onclick = () => selectTable(t.name);
+    $("#tables").appendChild(b);
+  }
+}
+
+function renderGrid(result) {
+  lastResult = result;
+  if (!result.rows.length) {
+    document.querySelector(".tablewrap").innerHTML =
+      '<div class="empty">Aucun résultat — ajuste la recherche ou les filtres.</div>';
+    return;
+  }
+  const numeric = result.columns.map((c, i) =>
+    result.rows.every((r) => r[i] === null || typeof r[i] === "number" ||
+      (r[i] && typeof r[i] === "object" && r[i].amount !== undefined)));
+  const head = "<thead><tr>" + result.columns.map((c, i) => {
+    const dir = !sqlMode && sort && sort.column === c
+      ? ` <span class="dir">${sort.dir === "ASC" ? "▲" : "▼"}</span>` : "";
+    return `<th class="${numeric[i] ? "num" : ""}" data-col="${c}">${c}${dir}</th>`;
+  }).join("") + "</tr></thead>";
+  const body = "<tbody>" + result.rows.map((r) =>
+    "<tr>" + r.map((v, i) => `<td class="${numeric[i] ? "num" : ""}">${fmt(v)}</td>`).join("") + "</tr>"
+  ).join("") + "</tbody>";
+  document.querySelector(".tablewrap").innerHTML = `<table id="grid">${head}${body}</table>`;
+  if (!sqlMode)
+    document.querySelectorAll("thead th").forEach((th) => th.onclick = () => {
+      const c = th.dataset.col;
+      sort = sort && sort.column === c && sort.dir === "ASC"
+        ? { column: c, dir: "DESC" } : { column: c, dir: "ASC" };
+      page = 0; refresh();
+    });
+}
+
+function renderStatus(text, isError) {
+  $("#status").innerHTML = isError ? `<span class="err">${text}</span>` : text;
+}
+
+function renderPager(total) {
+  const pager = $("#pager");
+  if (sqlMode || total <= PAGE) { pager.innerHTML = ""; return; }
+  const pages = Math.ceil(total / PAGE);
+  pager.innerHTML = `
+    <button class="ghost" id="pp" ${page === 0 ? "disabled" : ""}>←</button>
+    <span style="color:var(--ink-muted);font-size:12px">page ${page + 1} / ${pages}</span>
+    <button class="ghost" id="pn" ${page >= pages - 1 ? "disabled" : ""}>→</button>`;
+  $("#pp").onclick = () => { page--; refresh(); };
+  $("#pn").onclick = () => { page++; refresh(); };
+}
+
+/* ------------------------------- filtres ------------------------------- */
+function addFilterChip(f) {
+  filters.push(f);
+  const chip = document.createElement("span");
+  chip.className = "chip";
+  const colSel = document.createElement("select");
+  for (const c of cols()) colSel.add(new Option(c.name, c.name, false, c.name === f.column));
+  const opSel = document.createElement("select");
+  for (const op of Object.keys(OPS)) opSel.add(new Option(op, op, false, op === f.op));
+  const val = document.createElement("input");
+  val.placeholder = "valeur"; val.value = f.value;
+  const x = document.createElement("button");
+  x.className = "x"; x.textContent = "×"; x.title = "Retirer le filtre";
+  colSel.onchange = () => { f.column = colSel.value; page = 0; refresh(); };
+  opSel.onchange = () => { f.op = opSel.value; page = 0; refresh(); };
+  val.oninput = () => { f.value = val.value; page = 0; debounce(refresh); };
+  x.onclick = () => { filters = filters.filter((g) => g !== f); chip.remove(); page = 0; refresh(); };
+  chip.append(colSel, opSel, val, x);
+  $("#chips").appendChild(chip);
+  val.focus();
+}
+
+let timer;
+const debounce = (fn) => { clearTimeout(timer); timer = setTimeout(fn, 250); };
+
+/* ------------------------------ actions ------------------------------- */
+async function refresh() {
+  if (!current) return;
+  try {
+    if (sqlMode) {
+      const result = await runSQL($("#sql").value);
+      renderGrid(result);
+      renderStatus(`${result.rows.length.toLocaleString("fr-FR")} ligne(s)` +
+        (result.truncated ? " (tronqué à 500)" : "") + ` · ${result.elapsed_ms} ms`);
+      renderPager(0);
+    } else {
+      const [result, count] = [await runSQL(buildSQL(false)), await runSQL(buildSQL(true))];
+      const total = Number(count.rows[0][0]);
+      renderGrid(result);
+      renderStatus(`${total.toLocaleString("fr-FR")} ligne(s) au total · ${result.elapsed_ms} ms`);
+      renderPager(total);
+    }
+  } catch (e) { renderStatus(e.message, true); }
+}
+
+function selectTable(name) {
+  current = name; filters = []; sort = null; page = 0;
+  $("#chips").innerHTML = ""; $("#search").value = "";
+  $("#sql").value = `SELECT *\nFROM ${name}\nLIMIT 100`;
+  renderTables();
+  refresh();
+}
+
+function setMode(sql) {
+  sqlMode = sql;
+  $("#mode-simple").classList.toggle("on", !sql);
+  $("#mode-sql").classList.toggle("on", sql);
+  $("#simplebox").style.display = sql ? "none" : "";
+  $("#sqlbox").style.display = sql ? "block" : "none";
+  refresh();
+}
+
+const SAMPLES = [
+  ["Top expositions", "SELECT counterparty_lei, exposure.amount AS exposition_eur, limit_utilisation\nFROM exposures\nORDER BY exposition_eur DESC"],
+  ["Notionnel par devise", "SELECT notional.currency AS devise, count(*) AS trades,\n       round(sum(notional.amount) / 1e6, 1) AS notionnel_millions\nFROM trades\nGROUP BY 1 ORDER BY 3 DESC"],
+  ["Flux non appariés", "SELECT t.trade_id, t.notional, t.executed_at\nFROM trades t\nLEFT JOIN bank_statements s ON s.reference = 'STL-' || t.trade_id\nWHERE t.status = 'settled' AND s.reference IS NULL"],
+  ["Journal d'audit", "SELECT timestamp, actor, action, subject_urn\nFROM audit_journal\nORDER BY index DESC"],
+];
+
+/* -------------------------------- init --------------------------------- */
+(async () => {
+  try {
+    await initBackend();
+  } catch (e) {
+    const b = $("#banner");
+    b.hidden = false;
+    b.textContent = config.mode === "wasm"
+      ? "Le moteur SQL n'a pas pu se charger (connexion requise au premier accès) : " + e.message
+      : "Entrepôt indisponible : " + e.message;
+    renderStatus("", false);
+    return;
+  }
+  renderTables();
+  if (schemaTables.length) selectTable(schemaTables[0].name);
+  $("#mode-simple").onclick = () => setMode(false);
+  $("#mode-sql").onclick = () => setMode(true);
+  $("#run").onclick = refresh;
+  $("#sql").addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") refresh();
+  });
+  $("#search").oninput = () => { page = 0; debounce(refresh); };
+  $("#addfilter").onclick = () => cols().length && addFilterChip(
+    { column: cols()[0].name, op: "contient", value: "" });
+  for (const [label, sql] of SAMPLES) {
+    const b = document.createElement("button");
+    b.textContent = label;
+    b.onclick = () => { $("#sql").value = sql; refresh(); };
+    $("#samples").appendChild(b);
+  }
+  $("#csv").onclick = () => {
+    if (!lastResult || !lastResult.rows.length) return;
+    const esc = (v) => { const s = typeof v === "object" && v !== null ? JSON.stringify(v) : String(v ?? "");
+      return /[",;\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    const csv = [lastResult.columns.join(";")]
+      .concat(lastResult.rows.map((r) => r.map(esc).join(";"))).join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
+    a.download = (current || "resultat") + ".csv";
+    a.click();
+  };
+})();
+</script>
+</body>
+</html>
