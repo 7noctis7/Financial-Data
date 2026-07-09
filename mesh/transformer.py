@@ -41,6 +41,15 @@ class MappingError(ValueError):
     """Ligne intraduisible : rejetée avec sa raison, jamais devinée."""
 
 
+class ControlTotalsError(ValueError):
+    """Totaux de contrôle en écart : le fichier ENTIER est refusé.
+
+    Pratique bancaire standard : la source annonce ses totaux (nombre de
+    lignes, somme des montants par devise) ; le destinataire recompte.
+    Un écart signifie fichier tronqué ou corrompu — on ne garde rien.
+    """
+
+
 def _apply(spec, row):
     if callable(spec):
         return spec(row)
@@ -76,7 +85,28 @@ class DataTransformer:
                 raise MappingError(f"champ {field!r}: {exc}") from exc
         return record
 
-    def transform_rows(self, rows, origin, produced_at, source_name="rows"):
+    def _check_control_totals(self, rows, records, control_totals, produced_at):
+        """Maillon 1 de la chaîne de confiance : recompter ce qui est annoncé."""
+        problems = []
+        if "rows" in control_totals and len(rows) != control_totals["rows"]:
+            problems.append(f"lignes reçues {len(rows)} ≠ annoncées {control_totals['rows']}")
+        field = control_totals.get("field")
+        for currency, expected in control_totals.get("sums", {}).items():
+            actual = round(sum(r[field]["amount"] for r in records
+                               if r[field]["currency"] == currency), 2)
+            if abs(actual - float(expected)) > 0.01:
+                problems.append(f"somme {currency} calculée {actual} ≠ annoncée {expected}")
+        if problems:
+            self.audit_log.append(
+                actor=self.actor, action="transform.control_failed",
+                subject_urn=self.product_urn,
+                details={"problems": problems, "control_totals": control_totals},
+                timestamp=produced_at)
+            raise ControlTotalsError(
+                "fichier refusé en totalité — " + " ; ".join(problems))
+
+    def transform_rows(self, rows, origin, produced_at, source_name="rows",
+                       control_totals=None):
         rows = list(rows)
         records, rejects = [], []
         for i, row in enumerate(rows):
@@ -90,6 +120,8 @@ class DataTransformer:
                 rejects.append({"index": i, "reason": "; ".join(errors)})
             else:
                 records.append(record)
+        if control_totals:
+            self._check_control_totals(rows, records, control_totals, produced_at)
         batch = make_batch(self.product_urn, origin, produced_at, records)
         # Piste d'audit injectée au niveau de la classe : User + Time + Hash.
         input_hash = hashlib.sha256(
@@ -106,10 +138,11 @@ class DataTransformer:
         return batch, rejects
 
     def transform_csv(self, text_or_file, origin, produced_at, delimiter=";",
-                      source_name="csv"):
+                      source_name="csv", control_totals=None):
         stream = io.StringIO(text_or_file) if isinstance(text_or_file, str) else text_or_file
         return self.transform_rows(csv.DictReader(stream, delimiter=delimiter),
-                                   origin, produced_at, source_name=source_name)
+                                   origin, produced_at, source_name=source_name,
+                                   control_totals=control_totals)
 
     def from_source(self, source, business_date):
         """Couche de simulation / connecteur : même chemin, même audit.

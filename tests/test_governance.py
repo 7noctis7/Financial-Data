@@ -185,6 +185,34 @@ class TestReporting(unittest.TestCase):
             self.assertIn("RTS 22", meta["norm_ref"])
             self.assertGreater(meta["rows"], 200)  # ~250 trades moins annulés
 
+    def test_finrep_restitution_controls_pass_and_are_sealed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            generator = self._generator(tmp)
+            meta = generator.demo("finrep_f0101_fr", "csv", requester="r@fcc",
+                                  role="regulatory-officer", business_date=DATE)
+            self.assertEqual(len(meta["controls"]), 3)
+            self.assertTrue(all(c["ok"] for c in meta["controls"]))
+            content = Path(meta["path"]).read_text(encoding="utf-8")
+            self.assertIn("Controles de restitution : 3/3 OK", content)
+
+    def test_broken_total_blocks_delivery(self):
+        from reporting.generator import demo_assertions
+        with tempfile.TemporaryDirectory() as tmp:
+            generator = self._generator(tmp)
+            assertions = demo_assertions(generator.audit_log,
+                                         "urn:fcc:accounting:general-ledger",
+                                         DATE, "simulated")
+            rows = [{"row_ref": r, "item": "x", "reference": "", "amount_eur": v}
+                    for r, v in [("010", 100.0), ("040", 100.0), ("050", 50.0),
+                                 ("060", 30.0), ("080", 20.0), ("360", 0.0),
+                                 ("380", 999.0)]]  # total falsifié
+            with self.assertRaises(ReportError):
+                generator.generate("finrep_f0101_fr", rows, assertions, "r@fcc",
+                                   "regulatory-officer",
+                                   control_context={"ledger_equity_eur": 150.0})
+            self.assertEqual(generator.audit_log.entries()[-1]["action"],
+                             "report.control_failed")
+
     def test_generation_is_chained_in_audit_log(self):
         with tempfile.TemporaryDirectory() as tmp:
             generator = self._generator(tmp)

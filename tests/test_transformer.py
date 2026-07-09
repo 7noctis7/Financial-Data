@@ -58,6 +58,25 @@ class TestDataTransformer(unittest.TestCase):
         self.assertEqual(self.log.entries()[-1]["details"]["source"],
                          "SimulatedTradingSource")
 
+    def test_control_totals_pass(self):
+        batch, _ = self.transformer.transform_csv(
+            CSV, SIMULATED, f"{DATE}T18:00:00Z",
+            control_totals={"rows": 3, "field": "notional",
+                            "sums": {"EUR": 3500000.0}})
+        self.assertEqual(len(batch["records"]), 2)
+
+    def test_control_totals_mismatch_refuses_whole_file(self):
+        from mesh.transformer import ControlTotalsError
+        with self.assertRaises(ControlTotalsError):
+            self.transformer.transform_csv(
+                CSV, SIMULATED, f"{DATE}T18:00:00Z",
+                control_totals={"rows": 5, "field": "notional",
+                                "sums": {"EUR": 999.0}})
+        entry = self.log.entries()[-1]
+        self.assertEqual(entry["action"], "transform.control_failed")
+        self.assertEqual(len(entry["details"]["problems"]), 2)
+        self.assertIsNone(self.log.verify_chain())
+
     def test_unknown_source_column_rejected_not_guessed(self):
         _, rejects = self.transformer.transform_csv(
             "WrongHeader\nx\n", SIMULATED, f"{DATE}T18:00:00Z", delimiter=",")

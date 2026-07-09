@@ -3,16 +3,72 @@
   "department": "regulatory",
   "norm_ref": "Règlement d'exécution (UE) 2021/451 — FINREP, Annexe III, état F 01.01 ; instructions Annexe V (maquette : templates/reporting/FINREP-FR)",
   "classification": "restricted",
-  "roles": ["regulatory-officer", "auditor"],
+  "roles": [
+    "regulatory-officer",
+    "auditor"
+  ],
   "title": "F 01.01 — État de la situation financière : Actifs",
   "dataset": "finrep_f0101",
   "lang": "fr",
   "columns": [
-    {"key": "row_ref", "label": "Ligne"},
-    {"key": "item", "label": "Poste"},
-    {"key": "reference", "label": "Références"},
-    {"key": "amount_eur", "label": "Valeur comptable (EUR)"}
+    {
+      "key": "row_ref",
+      "label": "Ligne"
+    },
+    {
+      "key": "item",
+      "label": "Poste"
+    },
+    {
+      "key": "reference",
+      "label": "Références"
+    },
+    {
+      "key": "amount_eur",
+      "label": "Valeur comptable (EUR)"
+    }
   ],
-  "required_assertions": ["existence", "completeness", "rights_obligations",
-                          "valuation", "accuracy", "presentation"]
+  "required_assertions": [
+    "existence",
+    "completeness",
+    "rights_obligations",
+    "valuation",
+    "accuracy",
+    "presentation"
+  ],
+  "controls": [
+    {
+      "name": "F0101: 380 = 010 + 050 + 360",
+      "type": "recompute_total",
+      "key": "row_ref",
+      "amount_key": "amount_eur",
+      "total": "380",
+      "sum_of": [
+        "010",
+        "050",
+        "360"
+      ]
+    },
+    {
+      "name": "F0101: 050 = 060 + 080",
+      "type": "recompute_total",
+      "key": "row_ref",
+      "amount_key": "amount_eur",
+      "total": "050",
+      "sum_of": [
+        "060",
+        "080"
+      ]
+    },
+    {
+      "name": "Bouclage bilan <-> grand livre (380 = capitaux propres 5000)",
+      "type": "sum_equals",
+      "key": "row_ref",
+      "amount_key": "amount_eur",
+      "keys": [
+        "380"
+      ],
+      "expected_context": "ledger_equity_eur"
+    }
+  ]
 }

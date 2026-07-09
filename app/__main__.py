@@ -99,7 +99,8 @@ def _ingest(body):
     batch, rejects = transformer.transform_csv(
         body["csv"], origin, datetime.datetime.now(datetime.timezone.utc)
         .isoformat(timespec="seconds"), delimiter=body.get("delimiter", ";"),
-        source_name=body.get("filename", "upload"))
+        source_name=body.get("filename", "upload"),
+        control_totals=body.get("control_totals"))
     entry = _AUDIT.entries()[-1]
     return {
         "accepted": len(batch["records"]),

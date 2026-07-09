@@ -41,6 +41,36 @@ class ReportError(ValueError):
     """Livrable refusé : assertion manquante, format inconnu, template absent."""
 
 
+def run_controls(template, rows, context=None):
+    """Contrôles de restitution déclaratifs (bloc `controls` du template).
+
+    - recompute_total : une ligne de total doit être exactement la somme
+      de ses lignes filles (règle de validation type EBA) ;
+    - sum_equals : un agrégat du rapport doit égaler, au centime, une
+      valeur de la source fournie via `context` (bouclage de périmètre).
+
+    Retourne la liste des résultats — l'appelant décide de bloquer.
+    """
+    context = context or {}
+    results = []
+    for control in template.get("controls", []):
+        key, amount = control["key"], control["amount_key"]
+        by_key = {str(r[key]): float(r[amount]) for r in rows}
+        if control["type"] == "recompute_total":
+            actual = by_key.get(str(control["total"]))
+            expected = round(sum(by_key.get(str(k), 0.0) for k in control["sum_of"]), 2)
+        elif control["type"] == "sum_equals":
+            actual = round(sum(by_key.get(str(k), 0.0) for k in control["keys"]), 2)
+            expected = context.get(control["expected_context"])
+        else:
+            raise ReportError(f"type de contrôle inconnu : {control['type']!r}")
+        ok = (actual is not None and expected is not None
+              and abs(actual - float(expected)) <= 0.01)
+        results.append({"control": control.get("name", control["type"]),
+                        "ok": ok, "actual": actual, "expected": expected})
+    return results
+
+
 def _utc_now():
     return datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
 
@@ -65,7 +95,7 @@ class ReportGenerator:
         return json.loads(path.read_text(encoding="utf-8"))
 
     def generate(self, template_name, rows, assertions, requester, role,
-                 fmt="csv", timestamp=None, business_date=None):
+                 fmt="csv", timestamp=None, business_date=None, control_context=None):
         """Génère le livrable ; retourne ses métadonnées de certification."""
         template = self._template(template_name)
         resource = f"urn:fcc:{template['department']}:report:{template_name}"
@@ -92,6 +122,20 @@ class ReportGenerator:
         if fmt not in RENDERERS:
             raise ReportError(f"format inconnu : {fmt!r} (attendu {sorted(RENDERERS)})")
 
+        # 2 bis. Contrôles de restitution : un écart bloque la livraison
+        controls = run_controls(template, rows, control_context)
+        failed = [c for c in controls if not c["ok"]]
+        if failed:
+            self.audit_log.append(
+                actor=requester, action="report.control_failed",
+                subject_urn=resource,
+                details={"template": template_name, "failed": failed},
+                timestamp=timestamp)
+            raise ReportError(
+                "contrôle de restitution en échec — " + " ; ".join(
+                    f"{c['control']}: obtenu {c['actual']}, attendu {c['expected']}"
+                    for c in failed))
+
         # 3. Annexe de Preuve
         origins = {assertions[c]["origin"] for c in template["required_assertions"]}
         content_hash = hashlib.sha256(json.dumps(
@@ -109,7 +153,10 @@ class ReportGenerator:
             f"  {CATEGORY_LABELS[c]} : {assertions[c]['status']} — preuve "
             f"{assertions[c]['proof_hash']}"
             for c in template["required_assertions"]
-        ]
+        ] + ([f"Controles de restitution : {len(controls)}/{len(controls)} OK"] + [
+            f"  {c['control']} : {c['actual']} = {c['expected']} (au centime)"
+            for c in controls
+        ] if controls else [])
 
         content = RENDERERS[fmt](template["title"], template["columns"], rows, annex)
         file_hash = hashlib.sha256(content).hexdigest()
@@ -134,6 +181,7 @@ class ReportGenerator:
             "norm_ref": template.get("norm_ref"),
             "generated_at": timestamp, "requester": requester, "role": role,
             "origins": sorted(origins), "rows": len(rows),
+            "controls": controls,
             "content_hash": content_hash, "file_hash": file_hash,
             "audit_proof_hash": proof_hash,
         }
@@ -190,9 +238,14 @@ class ReportGenerator:
                     if t["status"] != "cancelled"]
             urn = "urn:fcc:trading:executed-trades"
         elif dataset == "finrep_f0101":
-            batch, rows = _finrep_f0101(trades, business_date, seed,
-                                        template.get("lang", "fr"))
+            batch, rows, control_context = _finrep_f0101(
+                trades, business_date, seed, template.get("lang", "fr"))
             urn = "urn:fcc:accounting:general-ledger"
+            assertions = demo_assertions(self.audit_log, urn, business_date,
+                                         batch["origin"])
+            return self.generate(template_name, rows, assertions, requester, role,
+                                 fmt=fmt, business_date=business_date,
+                                 control_context=control_context)
         else:
             raise ReportError(f"dataset inconnu dans le template : {dataset!r}")
         assertions = demo_assertions(self.audit_log, urn, business_date, batch["origin"])
@@ -257,7 +310,10 @@ def _finrep_f0101(trades, business_date, seed, lang):
     rows = [{"row_ref": ref, "item": labels[ref], "reference": _F0101_REFS[ref],
              "amount_eur": amounts[ref]} for ref in
             ("010", "040", "050", "060", "080", "360", "380")]
-    return ledger, rows
+    # Bouclage de périmètre : le total actif doit égaler, au centime, les
+    # capitaux propres du grand livre (solde créditeur du compte 5000).
+    control_context = {"ledger_equity_eur": round(-balances.get("5000", 0.0), 2)}
+    return ledger, rows, control_context
 
 
 def demo_assertions(log, product_urn, business_date, origin,
