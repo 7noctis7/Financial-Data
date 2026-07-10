@@ -108,8 +108,9 @@ mesh/                      PLATEFORME SELF-SERVICE (Python stdlib, zéro dépend
   transformer.py             DataTransformer : ingestion CSV/API → ontologie, audit natif
   feedback.py                Boucle de feedback : corrections humaines → scores
   __main__.py                CLI : catalog | validate | simulate | backfill
-domains/                   LES 7 DATA PRODUCTS (un contrat product.json chacun)
-  trading/ treasury/ risk/ audit/ regulatory/ client/ accounting/
+domains/                   LES DATA PRODUCTS (un contrat product*.json chacun)
+  trading/ treasury/ risk/ audit/ regulatory/ accounting/ fees/ market/
+  client/                    KYC (product.json) + cas de conformité (product-cases.json)
 sim/                       SIMULATEUR — seul module du dépôt créant de la donnée
   generator.py               Trades bancaires réalistes + relevés imparfaits
 connectors/                CONNECTIVITÉ (couche anti-corruption + MCP)
@@ -123,7 +124,9 @@ reporting/                 LIVRABLES CERTIFIÉS (CSV/XLSX/PDF, stdlib pur)
 templates/reporting/       Templates par département (regulatory, IR, treasury)
 app/                       APPLICATION (locale + export en ligne)
   data.py                    Agrégations → payload du dashboard
+  cases_view.py              Orchestration des cas de conformité (file, G11, SAR)
   static/index.html          Dashboard autonome (clair/sombre, SVG natif)
+  static/cases.html          Cas de conformité : file SLA assignable, 4 yeux, SAR
   static/explorer.html       Explorateur : filtres sans SQL + éditeur SQL
   static/reports.html        Rapports certifiés : génération + preuve depuis le navigateur
   static/recon.html          Réconciliation IA : suggestions scorées, accepter/rejeter

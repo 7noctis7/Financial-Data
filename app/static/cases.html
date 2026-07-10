@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cas de conformité — Financial Command Center</title>
+<style>
+  :root {
+    --surface-1: #fcfcfb; --page: #f9f9f7;
+    --ink-1: #0b0b0b; --ink-2: #52514e; --ink-muted: #898781;
+    --grid: #e1e0d9; --border: rgba(11,11,11,0.10);
+    --accent: #2a78d6; --accent-wash: rgba(42,120,214,0.10); --track: #cde2fb;
+    --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --surface-1: #1a1a19; --page: #0d0d0d;
+      --ink-1: #ffffff; --ink-2: #c3c2b7; --ink-muted: #898781;
+      --grid: #2c2c2a; --border: rgba(255,255,255,0.10);
+      --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16); --track: #184f95;
+    }
+  }
+  :root[data-theme="dark"] {
+    --surface-1: #1a1a19; --page: #0d0d0d;
+    --ink-1: #ffffff; --ink-2: #c3c2b7; --ink-muted: #898781;
+    --grid: #2c2c2a; --border: rgba(255,255,255,0.10);
+    --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16); --track: #184f95;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink-1);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 20px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 4px; }
+  h1 { font-size: 20px; font-weight: 650; margin: 0; }
+  nav { display: flex; gap: 6px; flex-wrap: wrap; }
+  nav a, .theme-btn {
+    color: var(--ink-2); text-decoration: none; font-size: 13px; font-weight: 600;
+    padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px;
+    background: var(--surface-1); cursor: pointer; font-family: inherit;
+  }
+  nav a:hover, .theme-btn:hover { background: var(--accent-wash); }
+  nav a.current { background: var(--accent); color: #fff !important; border-color: var(--accent); }
+  .sub { color: var(--ink-2); margin: 0 0 16px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+          gap: 12px; margin-bottom: 14px; }
+  .tile { background: var(--surface-1); border: 1px solid var(--border);
+          border-radius: 12px; padding: 13px 16px; }
+  .tile .label { font-size: 12px; color: var(--ink-2); }
+  .tile .value { font-size: 24px; font-weight: 600; }
+  .card { background: var(--surface-1); border: 1px solid var(--border);
+          border-radius: 12px; padding: 16px; min-width: 0; }
+  .card h2 { font-size: 14px; font-weight: 650; margin: 0 0 2px; }
+  .hint { font-size: 12px; color: var(--ink-muted); margin: 0 0 12px; }
+  .filter-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 0 0 12px; }
+  select, input { font: inherit; font-size: 13px; padding: 4px 8px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--surface-1); color: var(--ink-1); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: var(--ink-muted); font-weight: 500; font-size: 12px;
+       padding: 6px 8px; border-bottom: 1px solid var(--grid); }
+  td { padding: 7px 8px; border-bottom: 1px solid var(--grid); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 650;
+          padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); }
+  .chip.low { color: var(--good); border-color: var(--good); }
+  .chip.medium { color: var(--warning); border-color: var(--warning); }
+  .chip.high { color: var(--critical); border-color: var(--critical); }
+  .chip.open { color: var(--ink-2); }
+  .chip.in_review { color: var(--accent); border-color: var(--accent); }
+  .chip.escalated { color: var(--critical); border-color: var(--critical); }
+  .chip.cleared { color: var(--good); border-color: var(--good); }
+  .chip.overdue { color: #fff; background: var(--critical); border-color: var(--critical); }
+  .why { color: var(--ink-muted); font-size: 11px; }
+  .actions { white-space: nowrap; text-align: right; }
+  .actions button { border: 1px solid var(--border); background: var(--surface-1);
+    color: var(--ink-1); font: inherit; font-size: 12px; font-weight: 600;
+    border-radius: 8px; padding: 4px 9px; cursor: pointer; margin-left: 4px; }
+  .actions .esc:hover { border-color: var(--critical); color: var(--critical); }
+  .actions .clr:hover { border-color: var(--good); color: var(--good); }
+  .decided { font-size: 12px; font-weight: 650; }
+  .note { color: var(--ink-muted); font-size: 12px; margin-top: 12px; }
+  code { font-size: 12px; }
+  #modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none;
+    align-items: center; justify-content: center; padding: 20px; z-index: 50; }
+  #modal { background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px;
+    max-width: 640px; width: 100%; max-height: 86vh; overflow: auto; padding: 20px 22px; }
+  #modal h3 { margin: 0 0 4px; font-size: 16px; }
+  .sar-row { display: grid; grid-template-columns: 200px 1fr; gap: 8px; padding: 6px 0;
+    border-bottom: 1px solid var(--grid); }
+  .sar-row .k { color: var(--ink-2); font-weight: 600; font-size: 12px; }
+  .sar-row .src { color: var(--ink-muted); font-size: 11px; }
+  @media print {
+    nav, .theme-btn, button, select, input, .filter-bar { display: none !important; }
+    body { background: #fff !important; color: #000 !important; }
+    .card, .tile { border: 1px solid #ccc !important; break-inside: avoid; }
+  }
+  @keyframes fcc-rise { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: none; } }
+  button, .theme-btn, nav a, select, input { transition: background .15s ease, border-color .15s ease, color .15s ease, transform .08s ease; }
+  button:active, .theme-btn:active { transform: translateY(1px); }
+  @media (prefers-reduced-motion: no-preference) {
+    .card, .tile { animation: fcc-rise .42s cubic-bezier(.22,.61,.36,1) both; }
+    .tile:nth-child(2) { animation-delay: .04s; } .tile:nth-child(3) { animation-delay: .08s; }
+    .tile:nth-child(4) { animation-delay: .12s; } .tile:nth-child(5) { animation-delay: .16s; }
+    #modal { animation: fcc-rise .22s cubic-bezier(.22,.61,.36,1) both; }
+  }
+</style>
+</head>
+<body>
+<script id="fcc-cases-config" type="application/json">null</script>
+<div class="wrap">
+  <header>
+    <h1>Cas de conformité</h1>
+    <nav><a href="aml.html">KYC/AML</a><a href="cases.html" class="current">Cas</a><a href="index.html">Marchés</a><a href="recon.html">Réconciliation</a><a href="accounting.html">Comptabilité</a><a href="reports.html">Rapports</a><a href="audit.html">Audit</a><a href="faq.html">FAQ</a></nav>
+    <span style="flex:1"></span>
+    <button class="theme-btn" id="theme"></button>
+  </header>
+  <p class="sub">Domaine <b>Client Lifecycle</b> — file de traitement des diligences.
+  Un <b>cas</b> n'est jamais saisi : il est <b>dérivé</b> d'une revue KYC échue (ancienneté
+  &gt; cycle 365 j) ou d'une alerte AML ; sa <b>priorité</b> vient du risque (notation KYC ou
+  score/typologies). Chaque transition est <b>journalisée</b> ; l'escalade et le classement
+  exigent une <b>double validation</b> (proposition puis confirmation par un second validateur
+  distinct — règle G11). Une <b>SAR/MROS</b> se pré-remplit depuis le dossier, chaque champ
+  citant sa source (art. 9 LBA).</p>
+  <div class="kpis" id="kpis"></div>
+  <div class="card">
+    <div class="filter-bar">
+      <b style="font-size:13px">File</b>
+      <select id="f-type"><option value="">tous types</option>
+        <option value="kyc_review">revue KYC</option><option value="aml_alert">alerte AML</option></select>
+      <select id="f-status"><option value="">tous statuts</option>
+        <option value="open">open</option><option value="in_review">in_review</option>
+        <option value="escalated">escalated</option><option value="cleared">cleared</option></select>
+      <select id="f-priority"><option value="">toutes priorités</option>
+        <option value="high">high</option><option value="medium">medium</option><option value="low">low</option></select>
+      <select id="f-assignee"><option value="">tous responsables</option></select>
+      <span style="flex:1"></span>
+      <span class="why" id="count"></span>
+    </div>
+    <table id="queue"></table>
+    <p class="note" id="note"></p>
+  </div>
+</div>
+<div id="modal-bg"><div id="modal"></div></div>
+<script>
+"use strict";
+(() => { /* thème clair/sombre partagé */
+  const THEMES = ["auto", "light", "dark"], LABELS = { auto: "◐ Auto", light: "☀ Clair", dark: "● Sombre" };
+  const apply = (t) => {
+    if (t === "auto") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", t);
+    const b = document.querySelector("#theme"); if (b) b.textContent = LABELS[t];
+  };
+  let theme = localStorage.getItem("fcc-theme") || "auto";
+  apply(theme);
+  addEventListener("DOMContentLoaded", () => { apply(theme);
+    document.querySelector("#theme").onclick = () => {
+      theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+      localStorage.setItem("fcc-theme", theme); apply(theme); };
+  });
+})();
+
+const $ = (s) => document.querySelector(s);
+const config = JSON.parse($("#fcc-cases-config").textContent);
+const STATIC = config !== null;
+const fmtDate = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+const tile = (label, value, color) =>
+  `<div class="tile"><div class="label">${label}</div><div class="value"${color ? ` style="color:${color}"` : ""}>${value}</div></div>`;
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+let DATE = "";
+
+function renderKpis(d) {
+  $("#kpis").innerHTML =
+    tile("Journée", fmtDate(d.business_date)) +
+    tile("Cas ouverts (total)", d.total) +
+    tile("Retards SLA", d.overdue, d.overdue ? "var(--critical)" : "var(--good)") +
+    tile("Revues KYC", d.counts.kyc_review) +
+    tile("Alertes AML", d.counts.aml_alert);
+}
+
+function dueCell(c) {
+  const d = fmtDate(c.due_date);
+  if (c.overdue) return `<span class="chip overdue">⚠ ${d} · ${-c.days_to_due} j</span>`;
+  return `<span class="why">${d}${c.status === "cleared" || c.status === "escalated"
+    ? "" : ` · J${c.days_to_due >= 0 ? "+" : ""}${c.days_to_due}`}</span>`;
+}
+
+function actionsCell(c) {
+  if (STATIC) return '<span class="why">décisions : en local</span>';
+  if (c.status === "cleared" || c.status === "escalated")
+    return `<span class="decided" style="color:${c.status === "cleared" ? "var(--good)" : "var(--critical)"}">${c.status}</span>`;
+  const btns = [`<button class="sar" title="Pré-remplir une SAR/MROS sourcée">SAR</button>`];
+  if (c.status === "open") btns.push(`<button class="rev">Prendre en revue</button>`);
+  if (c.status === "in_review")
+    btns.push(`<button class="esc">⚑ Escalader</button>`, `<button class="clr">Classer</button>`);
+  return btns.join("");
+}
+
+function renderQueue(d) {
+  DATE = d.business_date;
+  const t = $("#queue");
+  t.innerHTML = '<tr><th>Cas</th><th>Type</th><th>Sujet</th><th>Priorité</th><th>Statut</th><th>Échéance SLA</th><th>Responsable</th><th></th></tr>';
+  if (!d.cases.length) { t.innerHTML += '<tr><td colspan="8" class="why">Aucun cas ne correspond au filtre.</td></tr>'; return; }
+  for (const c of d.cases) {
+    const row = t.insertRow();
+    row.innerHTML =
+      `<td><code>${esc(c.case_id)}</code><br><span class="why">${esc(c.rationale)}</span></td>
+       <td><span class="why">${c.case_type === "kyc_review" ? "revue KYC" : "alerte AML"}</span></td>
+       <td>${esc(c.subject_client_id)}<br><span class="why">LEI ${esc(c.subject_lei.slice(0, 8))}…</span></td>
+       <td><span class="chip ${c.priority}">${c.priority}</span></td>
+       <td><span class="chip ${c.status}">${c.status}</span></td>
+       <td>${dueCell(c)}</td>
+       <td>${c.assignee ? esc(c.assignee) : STATIC ? '<span class="why">—</span>'
+            : `<button class="asg" style="border:1px solid var(--border);background:var(--surface-1);color:var(--ink-2);font:inherit;font-size:12px;border-radius:8px;padding:3px 8px;cursor:pointer">assigner…</button>`}</td>
+       <td class="actions">${actionsCell(c)}</td>`;
+    if (!STATIC) wire(row, c);
+  }
+}
+
+function wire(row, c) {
+  const q = (s) => row.querySelector(s);
+  if (q(".asg")) q(".asg").onclick = () => {
+    const who = prompt(`Assigner ${c.case_id} à :`, "analyste-1");
+    if (who) send({ case_id: c.case_id, action: "assign", assignee: who, actor: who });
+  };
+  if (q(".rev")) q(".rev").onclick = () =>
+    send({ case_id: c.case_id, action: "review_started", actor: c.assignee || "analyste-1" });
+  if (q(".esc")) q(".esc").onclick = () => decide(row, c, "escalated");
+  if (q(".clr")) q(".clr").onclick = () => decide(row, c, "cleared");
+  if (q(".sar")) q(".sar").onclick = () => openSar(c);
+}
+
+async function send(extra) {
+  const res = await fetch("/api/cases/decide", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ date: DATE, timestamp: new Date().toISOString().slice(0, 19) + "Z", ...extra }) });
+  const body = await res.json();
+  if (!res.ok) { window.alert(body.error); return null; }
+  if (body.ok) reload();
+  return body;
+}
+
+async function decide(row, c, action) {
+  const actor = c.assignee || "analyste-1";
+  const first = await send({ case_id: c.case_id, action, actor });
+  if (first && first.pending) {
+    const cell = row.querySelector(".actions");
+    cell.innerHTML = `<span class="why">${action} proposé par ${esc(first.proposed_by)} — </span>`;
+    const btn = document.createElement("button");
+    btn.textContent = "✓ Confirmer (2e validateur)";
+    btn.style.cssText = "border:1px solid var(--warning);background:var(--surface-1);color:var(--ink-1);font:inherit;font-size:12px;font-weight:600;border-radius:8px;padding:4px 9px;cursor:pointer";
+    btn.onclick = () => send({ case_id: c.case_id, action, actor: "compliance-officer-2" });
+    cell.appendChild(btn);
+  }
+}
+
+async function openSar(c) {
+  const res = await fetch("/api/cases/sar", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ date: DATE, case_id: c.case_id }) });
+  const doc = await res.json();
+  if (!res.ok) { window.alert(doc.error); return; }
+  renderSar(doc);
+}
+
+function renderSar(doc) {
+  const rows = Object.entries(doc.fields).map(([k, f]) => {
+    let val = f.value;
+    if (Array.isArray(val)) val = val.map((g) =>
+      `<span class="chip" title="${esc(g.norm_ref)}" style="border-color:var(--warning);color:var(--warning)">${esc(g.label)}</span>`).join(" ");
+    else val = esc(val);
+    return `<div class="sar-row"><div><div class="k">${esc(k)}</div><div class="src">source : ${esc(f.source)}</div></div><div>${val}</div></div>`;
+  }).join("");
+  const clean = doc.unsourced.length === 0;
+  $("#modal").innerHTML =
+    `<div style="display:flex;align-items:center;gap:10px"><h3>SAR / MROS — ${esc(doc.case_id)}</h3>
+     <span style="flex:1"></span><button class="theme-btn" id="modal-close">Fermer</button></div>
+     <p class="hint">Pré-remplissage art. 9 LBA. <b style="color:${clean ? "var(--good)" : "var(--critical)"}">
+     ${clean ? "✓ tous les champs sont sourcés" : "✗ champs non sourcés : " + esc(doc.unsourced.join(", "))}</b>
+     — aucune valeur inventée ; une information absente est <code>n/d</code> avec sa source.</p>
+     ${rows}
+     <p class="note">Ce brouillon n'est PAS soumis : la transmission MROS reste une décision humaine journalisée.</p>`;
+  $("#modal-bg").style.display = "flex";
+  $("#modal-close").onclick = () => { $("#modal-bg").style.display = "none"; };
+}
+$("#modal-bg").onclick = (e) => { if (e.target.id === "modal-bg") $("#modal-bg").style.display = "none"; };
+
+function applyFilters(d) {
+  $("#count").textContent = `${d.total} cas · ${d.overdue} en retard`;
+  const sel = $("#f-assignee"), cur = sel.value;
+  sel.innerHTML = '<option value="">tous responsables</option>' +
+    d.assignees.map((a) => `<option${a === cur ? " selected" : ""}>${esc(a)}</option>`).join("");
+  renderKpis(d); renderQueue(d);
+}
+
+async function reload() {
+  if (STATIC) { applyFilters(config); return; }
+  const params = new URLSearchParams({ date: DATE || currentDate() });
+  for (const [id, key] of [["f-type", "case_type"], ["f-status", "status"],
+                           ["f-priority", "priority"], ["f-assignee", "assignee"]]) {
+    const v = $("#" + id).value; if (v) params.set(key, v);
+  }
+  const res = await fetch("/api/cases?" + params.toString());
+  const d = await res.json();
+  if (!res.ok) { $("#note").textContent = d.error; return; }
+  applyFilters(d);
+}
+function currentDate() { return config ? config.business_date : new Date().toISOString().slice(0, 10); }
+
+addEventListener("DOMContentLoaded", () => {
+  for (const id of ["f-type", "f-status", "f-priority", "f-assignee"])
+    $("#" + id).onchange = reload;
+  $("#note").innerHTML = STATIC
+    ? "Version en ligne : lecture seule — les décisions se prennent en local (<code>python3 -m app</code>)."
+    : "Transitions et décisions entrent dans la chaîne d'audit chaînée (<code>data/audit-server.jsonl</code>). Escalade et classement sous double validation (G11).";
+  if (STATIC) { DATE = config.business_date; applyFilters(config); }
+  else reload();
+});
+</script>
+</body>
+</html>

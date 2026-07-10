@@ -23,10 +23,12 @@ from urllib.parse import parse_qs, urlparse
 from mesh import warehouse
 from mesh.audit import AuditLog
 from mesh.feedback import FeedbackStore
+from mesh.four_eyes import FourEyesRegister
 from mesh.lineage import Lineage
 from mesh.reconciliation import decide, suggest, unmatched
 from mesh.registry import REPO_ROOT, Registry
 
+from . import cases_view
 from .data import build_payload
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -54,6 +56,10 @@ class BadRequest(Exception):
 
 _PENDING_AML = {}  # trade_id -> proposition en attente de 2e validation (G11)
 _PENDING_LOCK = threading.Lock()  # ThreadingHTTPServer est multi-thread (C3)
+
+# Registre 4-yeux (G11) des décisions de cas : propositions en attente,
+# protégé par son propre verrou (état de processus, comme _PENDING_AML).
+_CASES_FOUR_EYES = FourEyesRegister()
 
 # Cache du payload /api/summary (constat C1) : le pipeline d'un jour est
 # déterministe par (date, seed, n_trades) ; inutile de le rejouer à chaque
@@ -307,6 +313,13 @@ class Handler(SimpleHTTPRequestHandler):
                                  "audit_chain_intact": _AUDIT.verify_chain() is None})
             elif path == "/api/aml/decide":
                 self._send_json(_aml_four_eyes(self._read_body()))
+            elif path == "/api/cases/decide":
+                self._send_json(cases_view.decide(
+                    _REGISTRY, _AUDIT, _CASES_FOUR_EYES, self._read_body(),
+                    feedback=_aml_feedback()))
+            elif path == "/api/cases/sar":
+                self._send_json(cases_view.sar_document(
+                    _REGISTRY, _AUDIT, self._read_body(), feedback=_aml_feedback()))
             elif path == "/api/ingest":
                 self._send_json(_ingest(self._read_body()))
             else:
@@ -346,6 +359,23 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if parsed.path == "/api/reports/templates":
             self._send_json({"templates": _templates_listing()})
+            return
+        if parsed.path == "/api/cases":
+            query = parse_qs(parsed.query)
+            date = query.get("date", [_default_date()])[0]
+            if not DATE_RE.match(date):
+                self._send_json({"error": "date attendue au format AAAA-MM-JJ"}, 400)
+                return
+            try:
+                seed = int(query.get("seed", ["42"])[0])
+                filters = {k: query[k][0] for k in
+                           ("assignee", "status", "case_type", "priority")
+                           if k in query}
+                self._send_json(cases_view.payload(
+                    _REGISTRY, _AUDIT, date, seed,
+                    feedback=_aml_feedback(), filters=filters))
+            except Exception as exc:
+                self._fail(exc)
             return
         if parsed.path in ("/api/recon", "/api/aml", "/api/accounting"):
             query = parse_qs(parsed.query)
@@ -430,6 +460,9 @@ def export(business_date, seed=42, n_trades=250):
     _export_embedded("aml.html",
                      '<script id="fcc-aml-config" type="application/json">null</script>',
                      _aml_payload(business_date, seed))
+    _export_embedded("cases.html",
+                     '<script id="fcc-cases-config" type="application/json">null</script>',
+                     cases_view.payload(_REGISTRY, _AUDIT, business_date, seed))
     _export_embedded("ingest.html",
                      '<script id="fcc-ingest-config" type="application/json">null</script>',
                      {"mode": "static"})
