@@ -192,6 +192,10 @@ def kyc_rating(client_type, residence_country, pep):
                        "renforcée (liste interne alignée GAFI)")
     if pep or residence_country in ENHANCED_DILIGENCE_COUNTRIES:
         return "high", " ; ".join(factors)
+    if client_type in ("individual", "pep-individual"):
+        factors.append("personne physique (client privé) : absence de surveillance "
+                       "prudentielle, transparence du bénéficiaire effectif à établir")
+        return "medium", " ; ".join(factors)
     if client_type != "bank":
         factors.append("établissement non bancaire (fonds / société de gestion / "
                        "trade finance) : surveillance prudentielle moindre qu'une banque")
@@ -210,12 +214,26 @@ class SimulatedClientSource(DataSource):
     origin = SIMULATED
     product_urn = "urn:fcc:client:kyc-profiles"
 
+    # Portefeuille réaliste : établissements ET clients particuliers, dont des
+    # personnes politiquement exposées (PEP). Noms fictifs (origin=simulated).
     EXTRA_CLIENTS = [
         ("549300H5DJ2KWQZM4V90", "Helvetia Capital SA", "asset-manager"),
         ("969500FX2K3AB8CD1E22", "Fonds Lumière SICAV", "fund"),
         ("529900T8BM49AURSDO55", "Nordwind Asset GmbH", "asset-manager"),
         ("213800ZBKL9BYSLXAB12", "Atlas Trade Finance Ltd", "trade-finance"),
+        # Clients particuliers (personnes physiques, patrimoine privé)
+        ("PARTICULIER-FR-0001AB", "Amélie Rousseau", "individual"),
+        ("PARTICULIER-DE-0002CD", "Klaus Bergmann", "individual"),
+        ("PARTICULIER-CH-0003EF", "Sofia Marchetti", "individual"),
+        # Personnes politiquement exposées (PEP) — vigilance renforcée LBC-FT
+        ("PEP-FR-0004-PARLEMENT", "Édouard Villemont (parlementaire)", "pep-individual"),
+        ("PEP-INTL-0005-MINISTR", "Farida Benali (ancienne ministre)", "pep-individual"),
+        ("PEP-INTL-0006-FAMILLE", "Dimitri Sokolov (proche d'un dirigeant)", "pep-individual"),
     ]
+
+    # Types de clients dont le statut PEP est établi par nature (déterministe,
+    # jamais tiré au sort) — un politique déclaré EST politiquement exposé.
+    PEP_CLIENT_TYPES = {"pep-individual"}
 
     def __init__(self, seed=42):
         self.seed = seed
@@ -228,7 +246,9 @@ class SimulatedClientSource(DataSource):
         import datetime
         bd = datetime.date.fromisoformat(business_date)
         for i, (lei, name, client_type) in enumerate(clients):
-            pep = rng.random() < 0.10
+            # PEP par nature pour les clients politiquement exposés déclarés ;
+            # sinon tirage réaliste (~10 %) sur les autres profils.
+            pep = client_type in self.PEP_CLIENT_TYPES or rng.random() < 0.10
             residence = rng.choice(RESIDENCE_COUNTRIES)
             rating, rationale = kyc_rating(client_type, residence, pep)
             # Ancienneté de la dernière revue étalée de façon réaliste (60 à
