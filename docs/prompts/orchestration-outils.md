@@ -25,11 +25,43 @@ n'importe quel projet. Copie tout le bloc ci-dessous.
 > - le **CEO d'Obsidian** — la connaissance locale, possédée, en Markdown
 >   pérenne, qui survit à tout fournisseur et relie les idées par le graphe.
 >
+> **Trois voix invitées** siègent aussi au comité ; chacune impose un standard
+> non négociable et un veto sur le résultat :
+> - **Elon Musk — l'efficience par les premiers principes.** Applique
+>   *l'algorithme* à chaque flux d'outils : (1) mets en cause chaque exigence
+>   (nommer l'humain qui la porte), (2) **supprime** toute étape, tout champ,
+>   tout outil qui ne se justifie pas — « le meilleur composant est celui qu'on
+>   retire », (3) simplifie ce qui reste, (4) accélère le cycle, (5) automatise
+>   en DERNIER (jamais un processus faux plus vite). Veto : toute étape manuelle
+>   récurrente qu'une intégration MCP/CI supprimerait, tout doublon d'outil, tout
+>   délai entre « décidé » et « fait ». Cible la **vitesse de boucle** :
+>   idée → code → preuve → décision en minutes, pas en jours.
+> - **Steve Jobs — l'expérience et le goût.** « Design is not how it looks, it's
+>   how it works. » Le système multi-outils doit **paraître un seul produit** :
+>   un utilisateur ne doit jamais sentir la couture entre Claude, Notion, GitHub,
+>   Obsidian, Gemini. « It just works » : zéro configuration exposée, un seul
+>   point d'entrée par intention. Dis **non à mille choses** — chaque outil,
+>   chaque écran, chaque bouton de trop est retiré jusqu'à l'essentiel. Veto :
+>   toute friction visible, tout jargon montré à l'utilisateur, toute étape qui
+>   demande de « savoir quel outil ». La qualité se voit dans les détails que
+>   personne ne remarque consciemment.
+> - **Alex Karp (Palantir) — la maîtrise des données et l'ontologie
+>   décisionnelle.** La valeur n'est pas dans la donnée mais dans **la décision
+>   qu'elle permet**. Impose une **ontologie** qui relie chaque donnée à une
+>   entité du monde réel et à l'action qu'elle déclenche ; casse les silos
+>   (intégration) sans jamais laisser une IA décider seule sur un sujet sensible
+>   (**human-in-the-loop**, décision journalisée). Veto : toute donnée orpheline
+>   (sans propriétaire, sans lignage, sans usage décisionnel), toute
+>   « intelligence » non traçable, toute exploitation de données sans piste
+>   d'audit. La confiance institutionnelle est le produit, pas un supplément.
+>
 > **Objectif.** Produire un **modèle opérationnel de collaboration** entre ces
-> cinq outils, applicable à tout projet, qui maximise la valeur de chacun et
-> élimine les doublons. Interdits : le jargon marketing, les généralités
-> (« ils se complètent bien »), et toute proposition non réalisable avec les
-> intégrations réelles (MCP, API, git, fichiers Markdown).
+> cinq outils, applicable à tout projet, qui maximise la valeur de chacun,
+> élimine les doublons, **maîtrise le cycle de vie complet de la donnée** et
+> livre une **expérience utilisateur d'un seul tenant**. Interdits : le jargon
+> marketing, les généralités (« ils se complètent bien »), et toute proposition
+> non réalisable avec les intégrations réelles (MCP, API, git, fichiers
+> Markdown).
 >
 > **Principe directeur imposé — la règle de la source unique.** Chaque
 > information a **un seul propriétaire canonique** ; les autres outils en
@@ -73,13 +105,43 @@ n'importe quel projet. Copie tout le bloc ci-dessous.
 >    horodatage, refus du chiffre non sourcé, aucun secret hors du coffre, et
 >    traçabilité des décisions (qui a tranché, quand, pourquoi).
 >
-> 5. **Boucle quotidienne type** — décris une journée de travail concrète en
->    8 à 12 étapes, du réveil de l'agent (lecture mémoire) à la clôture
->    (cochage + journal), en montrant les cinq outils à l'œuvre au bon moment.
+> 5. **Maîtrise du cycle de vie de la donnée (regard Karp)** — pour chaque
+>    étape, dis quel outil est propriétaire et quel canal la porte :
+>    | Étape | Question à trancher | Outil moteur |
+>    |---|---|---|
+>    | **Création / ingestion** | d'où vient la donnée, quelle provenance ? | connecteur (code GitHub) ; Gemini pour l'extraction multimodale |
+>    | **Traitement / dérivation** | quelle transformation, quel lignage ? | code + tests (GitHub) |
+>    | **Exploitation / analyse** | quelle décision cette donnée permet ? | Claude (raisonnement) ancré sur la source |
+>    | **Investigation** | comment remonter d'un chiffre à sa cause ? | requête + journal d'audit (drill-down) |
+>    | **Restitution** | comment prouver un chiffre 6 mois plus tard ? | Annexe de Preuve + hash (GitHub) |
+>    Exige une **ontologie** reliant chaque champ à une entité réelle et à son
+>    usage ; aucune donnée orpheline ; human-in-the-loop sur toute décision
+>    sensible, journalisée.
 >
-> 6. **Matrice de maturité** — 3 niveaux (manuel → semi-automatisé → orchestré)
+> 6. **Expérience utilisateur unifiée (regards Jobs & Musk)** — décris comment
+>    les cinq outils se présentent comme **un seul produit** : un point d'entrée
+>    par intention, zéro couture visible, zéro jargon exposé. Pour le visuel et
+>    l'UI/UX : hiérarchie claire, un seul système de design (thème clair/sombre,
+>    typographie, dates lisibles), interactions directes (survol = détail au
+>    temps réel, clic = fenêtre de contexte), et **le retrait comme méthode**
+>    (chaque écran/bouton de trop est supprimé). Nomme les 3 frictions
+>    utilisateur les plus probables dans un montage multi-outils et comment les
+>    faire disparaître.
+>
+> 7. **Boucle quotidienne type** — décris une journée de travail concrète en
+>    8 à 12 étapes, du réveil de l'agent (lecture mémoire) à la clôture
+>    (cochage + journal), en montrant les cinq outils à l'œuvre au bon moment,
+>    et en visant la **vitesse de boucle** minimale (regard Musk).
+>
+> 8. **Matrice de maturité** — 3 niveaux (manuel → semi-automatisé → orchestré)
 >    décrivant l'état d'intégration, pour que l'utilisateur situe son projet et
 >    voie la prochaine marche concrète à franchir.
+>
+> **Triple veto final.** Avant de conclure, passe le modèle au crible des trois
+> voix : *Musk* — « quelle étape/quel outil puis-je encore supprimer ? » ;
+> *Jobs* — « où l'utilisateur sent-il encore la couture ou le jargon ? » ;
+> *Karp* — « quelle donnée reste orpheline ou quelle décision n'est pas
+> traçable ? ». Corrige jusqu'à ce que les trois vetos tombent.
 >
 > **Format.** Tableaux quand c'est une correspondance, listes numérotées quand
 > c'est une séquence, prose brève sinon. Termine par **la seule règle à retenir
@@ -101,3 +163,16 @@ La règle de la source unique est déjà la colonne vertébrale du dépôt :
 - **Gemini** est le bon candidat pour l'ingestion massive (relire les maquettes
   officielles COREP/FINREP, un manuel d'audit entier) et rendre une synthèse
   citée que Claude transforme en tranches vérifiables.
+
+Les trois voix invitées cadrent déjà des choix du projet :
+- **Musk (efficience)** — un seul payload sert le serveur ET l'export statique ;
+  le cache `/api/summary` évite de rejouer le pipeline ; l'origine ne se
+  « promeut » pas, elle vient d'un vrai connecteur : aucune étape inutile.
+- **Jobs (expérience)** — navigation dans l'ordre du cycle de vie bancaire, un
+  seul système de design (thème clair/sombre, dates `JJ/MM/AAAA`), survol =
+  détail temps réel, clic = mini-fenêtre ; l'utilisateur ne voit jamais l'outil,
+  seulement la tâche.
+- **Karp (ontologie décisionnelle)** — `docs/ontology.md` relie chaque champ à
+  une entité réelle ; le journal chaîné et l'Annexe de Preuve rendent chaque
+  chiffre investigable et opposable ; l'IA propose, l'humain tranche sous
+  contrôle 4 yeux (G11), toujours journalisé.
