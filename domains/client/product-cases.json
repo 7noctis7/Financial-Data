@@ -1,0 +1,27 @@
+{
+  "urn": "urn:fcc:client:cases",
+  "domain": "client",
+  "name": "Compliance Cases",
+  "version": "1.0.0",
+  "owner": "client-lifecycle@fcc",
+  "description": "Dossiers de traitement de la diligence : revues KYC échues et alertes AML. L'existence et la priorité d'un cas sont dérivées de la donnée (revue dont l'ancienneté dépasse le cycle, alerte au-dessus du seuil) — jamais saisies. L'état courant est le repli des transitions journalisées dans la chaîne d'audit ; escalade et classement exigent une double validation (G11). Donnée personnelle RGPD : classification restricted.",
+  "output_schema": {
+    "entity": "Case",
+    "fields": [
+      {"name": "case_id", "type": "string"},
+      {"name": "case_type", "type": "string"},
+      {"name": "subject_client_id", "type": "string", "ontology_term": "Client"},
+      {"name": "subject_lei", "type": "string", "ontology_term": "Counterparty"},
+      {"name": "status", "type": "string"},
+      {"name": "priority", "type": "string"},
+      {"name": "assignee", "type": "string"},
+      {"name": "opened_at", "type": "timestamp"},
+      {"name": "due_date", "type": "timestamp"},
+      {"name": "source_ref", "type": "string"},
+      {"name": "rationale", "type": "string"}
+    ]
+  },
+  "slo": {"freshness_seconds": 86400, "max_violation_rate": 0.0, "cooldown_seconds": 3600},
+  "access": {"classification": "restricted", "roles": ["compliance-officer", "auditor"]},
+  "sources": ["urn:fcc:client:kyc-profiles", "urn:fcc:trading:executed-trades"]
+}
