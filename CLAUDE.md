@@ -40,6 +40,9 @@ ne réexplique rien, il **pointe** vers la source unique de chaque règle.
 - `docs/prompts/revue-qualite-rapports.md` — revue qualité de chaque rapport
   (pertinence, complétude, exactitude, langue, design, traçabilité) puis
   correction, au standard d'une banque de premier rang.
+- `docs/prompts/revue-sections-app.md` — comité de direction produit : revue
+  et amélioration des 9 sections de l'app (visuel, rigueur, datas, I/O) +
+  backlog de nouvelles fonctionnalités par section.
 
 ## En fin de session (clôture — fait partie de la tâche)
 
