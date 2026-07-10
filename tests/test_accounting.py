@@ -79,10 +79,10 @@ class TestPnlAndOffBalance(unittest.TestCase):
     def test_off_balance_sheet_only_live_derivatives(self):
         from mesh.accounting import off_balance_sheet
         obs = off_balance_sheet(self.trades)
-        labels = {l["engagement"] for l in obs["lines"]}
+        labels = {ln["engagement"] for ln in obs["lines"]}
         self.assertTrue(labels.issubset({"Swaps de taux (IRS)", "Change à terme (FX forward)"}))
         self.assertAlmostEqual(obs["total_notionnel_eur"],
-                               round(sum(l["notionnel_eur"] for l in obs["lines"]), 2), places=2)
+                               round(sum(ln["notionnel_eur"] for ln in obs["lines"]), 2), places=2)
         # aucun titre au comptant ni trade annulé dans le hors-bilan
         self.assertGreater(obs["total_notionnel_eur"], 0)
 
