@@ -353,10 +353,17 @@ def _finrep_f0101(trades, business_date, seed, lang):
     010 = 040, 050 = 060 + 080, 380 = 010 + 050 + 360."""
     from mesh.accounting import derive_ledger, trial_balance
     from mesh.derivations import FX_TO_EUR
+    from mesh.fees import derive_fees
     from sim.generator import simulate_bank_statements
 
     statements = simulate_bank_statements(trades, seed=seed)
-    ledger = derive_ledger(trades, statements, business_date)
+    # Grand livre COHÉRENT avec F 01.03 / bilan / PnL : commissions incluses.
+    # Sinon l'encaissement des commissions crédite les capitaux propres (7000)
+    # sans que la trésorerie correspondante figure à l'actif — le bilan ne
+    # boucle plus (Actif ≠ Passif) et l'affirmation « bouclage F 01.01 ↔
+    # F 01.03 au centime » devient fausse. Une seule dérivation par date (D3).
+    ledger = derive_ledger(trades, statements, business_date,
+                           fees_batch=derive_fees(trades, business_date))
     balances = {}
     for account in trial_balance(ledger)["accounts"]:
         eur = account["balance"] * FX_TO_EUR[account["currency"]]
