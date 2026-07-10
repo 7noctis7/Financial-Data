@@ -181,6 +181,29 @@ chantiers C1 / S2 / C3.
 
 ---
 
+## État des correctifs (10/07/2026) — tous appliqués et prouvés
+
+| # | Correctif | Preuve exécutable |
+|---|---|---|
+| **S1** | DuckDB : tables matérialisées + `enable_external_access=false` + `lock_configuration=true` | `test_arbitrary_file_read_is_blocked`, `test_config_cannot_be_reenabled`, `test_legitimate_query_still_works_after_lockdown` ; vérifié en direct : `read_csv_auto('/etc/hostname')` refusé, `SELECT count(*)` OK |
+| **S2** | Erreurs attendues (message métier) vs inattendues (message générique + `correlation_id` + log serveur) | Vérifié en direct : template inconnu → message ; lecture fichier → `{"error":"erreur interne","correlation_id":...}` |
+| **S3** | Plafond 5 Mo sur les corps POST | Vérifié en direct : `Content-Length: 99999999` → refusé avant lecture |
+| **S+** | camt.053 : rejet DOCTYPE/ENTITY (XXE) + borne 20 Mo ; Yahoo : schéma https imposé | `test_camt053_rejects_xxe_doctype` (constat bandit B314/B310) |
+| **C1** | Cache borné du payload `/api/summary` par `(date, seed, n_trades)` | Vérifié en direct : 2ᵉ appel ~20× plus rapide (0,001 s vs 0,030 s) |
+| **C2** | `Registry()` chargé une fois (`_REGISTRY`), plus par requête | `Registry()` restant : 1 (le singleton) |
+| **C3** | `_PENDING_AML` sous `threading.Lock` (section critique 4-yeux) | Relecture adverse : réservation `del` sous verrou avant validation |
+| **D1** | `reload()` conditionné au `mtime` ; `verify_chain()` mémoïsé | `test_reload_skips_unchanged_file`, `test_reload_detects_external_append`, `test_verify_still_catches_tamper_after_memo` |
+| **D3** | Scénario de simulation unique (`DEMO_SCENARIO`) partagé par toutes les pages | Toutes les vues d'une même date décrivent les mêmes relevés |
+| **A1** | `requirements.txt` avec `duckdb==1.5.4` ; CI `setup-python` + cache pip | `pip install -r requirements.txt` |
+| **A2** | Job CI `quality` : ruff + bandit (bloquants, verts) + pip-audit (informatif) | `ruff check` : All checks passed ; `bandit -ll` : No issues identified |
+
+Suite : **109 tests verts** (86 → 109 sur cette revue). Restent
+volontairement différés (non régressions, dépendants d'une exposition
+future) : **S4** (CSRF/auth, bloquant seulement avant multi-utilisateurs)
+et **D2** (segmentation du journal, sans impact aux volumes actuels).
+
+---
+
 ## Prompt d'itération optimisé (Étape 2)
 
 > Tu es un Staff Engineer. Applique les correctifs de la revue

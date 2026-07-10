@@ -10,9 +10,12 @@ page : la version en ligne est un instantané figé de la version locale.
 
 import datetime
 import json
+import logging
 import re
 import shutil
 import sys
+import threading
+import uuid
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -34,12 +37,44 @@ REPORTS_PLACEHOLDER = '<script id="fcc-reports-config" type="application/json">n
 RECON_PLACEHOLDER = '<script id="fcc-recon-config" type="application/json">null</script>'
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 PORT = 8787
+MAX_BODY_BYTES = 5 * 1024 * 1024  # plafond anti-DoS mémoire sur les corps POST (S3)
+
+logging.basicConfig(level=logging.INFO, format="[fcc] %(asctime)s %(levelname)s %(message)s")
+_LOG = logging.getLogger("fcc")
 
 _AUDIT = AuditLog(REPO_ROOT / "data" / "audit-server.jsonl")  # persistant, chaîné
 _FEEDBACK = FeedbackStore(REPO_ROOT / "data" / "feedback.jsonl")
+_REGISTRY = Registry()  # invariant du processus : chargé une fois, pas par requête (C2)
+
+
+class BadRequest(Exception):
+    """Erreur ATTENDUE (validation, IAM, contrôle) : son message est sûr à
+    renvoyer au client. Les autres exceptions sont masquées (S2)."""
 
 
 _PENDING_AML = {}  # trade_id -> proposition en attente de 2e validation (G11)
+_PENDING_LOCK = threading.Lock()  # ThreadingHTTPServer est multi-thread (C3)
+
+# Cache du payload /api/summary (constat C1) : le pipeline d'un jour est
+# déterministe par (date, seed, n_trades) ; inutile de le rejouer à chaque
+# rafraîchissement. Borné, protégé par verrou, sérialisé une seule fois.
+_SUMMARY_CACHE = {}
+_SUMMARY_LOCK = threading.Lock()
+_SUMMARY_CACHE_MAX = 32
+
+
+def _summary_bytes(date, seed, n_trades):
+    key = (date, seed, n_trades)
+    with _SUMMARY_LOCK:
+        cached = _SUMMARY_CACHE.get(key)
+        if cached is not None:
+            return cached
+    body = json.dumps(build_payload(date, seed, n_trades)).encode("utf-8")
+    with _SUMMARY_LOCK:
+        if len(_SUMMARY_CACHE) >= _SUMMARY_CACHE_MAX:
+            _SUMMARY_CACHE.pop(next(iter(_SUMMARY_CACHE)))  # évince la plus ancienne
+        _SUMMARY_CACHE[key] = body
+    return body
 
 
 def _aml_four_eyes(body):
@@ -54,23 +89,26 @@ def _aml_four_eyes(body):
     escalated = bool(body["escalated"])
     timestamp = body.get("timestamp", "")
     key = alert["trade_id"]
-    pending = _PENDING_AML.get(key)
-    if pending is None:
-        _PENDING_AML[key] = {"actor": actor, "escalated": escalated}
-        _AUDIT.append(actor=actor, action="aml.proposed",
-                      subject_urn="urn:fcc:client:kyc-profiles",
-                      details={"trade_id": key, "escalated": escalated,
-                               "awaiting": "second-validator"},
-                      timestamp=timestamp)
-        return {"pending": True, "proposed_by": actor}
-    if pending["actor"] == actor:
-        raise PermissionError(
-            "contrôle 4 yeux (G11) : un second validateur DISTINCT est requis "
-            f"(proposé par {actor!r})")
+    # Section critique : deux requêtes concurrentes sur le même trade ne
+    # doivent pas créer deux propositions ni valider deux fois (C3).
+    with _PENDING_LOCK:
+        pending = _PENDING_AML.get(key)
+        if pending is None:
+            _PENDING_AML[key] = {"actor": actor, "escalated": escalated}
+            _AUDIT.append(actor=actor, action="aml.proposed",
+                          subject_urn="urn:fcc:client:kyc-profiles",
+                          details={"trade_id": key, "escalated": escalated,
+                                   "awaiting": "second-validator"},
+                          timestamp=timestamp)
+            return {"pending": True, "proposed_by": actor}
+        if pending["actor"] == actor:
+            raise PermissionError(
+                "contrôle 4 yeux (G11) : un second validateur DISTINCT est requis "
+                f"(proposé par {actor!r})")
+        del _PENDING_AML[key]  # réservé sous verrou avant de valider hors section
     feedback = _aml_feedback()
     aml.decide(alert, escalated=pending["escalated"], actor=f"{pending['actor']}+{actor}",
                audit_log=_AUDIT, timestamp=timestamp, feedback=feedback)
-    del _PENDING_AML[key]
     return {"ok": True, "validated_by": [pending["actor"], actor],
             "feedback_entries": len(feedback),
             "audit_chain_intact": _AUDIT.verify_chain() is None}
@@ -87,7 +125,7 @@ def _aml_payload(date, seed=42, n_trades=250):
     from sim.generator import SimulatedClientSource, SimulatedTradingSource
     trades = SimulatedTradingSource(seed=seed, n_trades=n_trades).fetch(date)
     kyc = SimulatedClientSource(seed=seed).fetch(date)
-    prediction = screen(trades, kyc, Lineage(Registry()), feedback=_aml_feedback())
+    prediction = screen(trades, kyc, Lineage(_REGISTRY), feedback=_aml_feedback())
     profiles = kyc["records"]
     return {
         "business_date": date, "seed": seed,
@@ -114,10 +152,9 @@ INGEST_MAPPING = {
 
 def _accounting_payload(date, seed=42, n_trades=250):
     from mesh.accounting import derive_ledger, trial_balance
-    from sim.generator import SimulatedTradingSource, simulate_bank_statements
+    from sim.generator import SimulatedTradingSource, demo_statements
     trades = SimulatedTradingSource(seed=seed, n_trades=n_trades).fetch(date)
-    statements = simulate_bank_statements(trades, seed=seed,
-                                          drop_rate=0.01, mutate_rate=0.02)
+    statements = demo_statements(trades, seed=seed)
     ledger = derive_ledger(trades, statements, date)
     balance = trial_balance(ledger)
     return {
@@ -171,12 +208,11 @@ def _templates_listing():
 
 
 def _recon_payload(date, seed=42, n_trades=2000):
-    from sim.generator import SimulatedTradingSource, simulate_bank_statements
+    from sim.generator import SimulatedTradingSource, demo_statements
     trades = SimulatedTradingSource(seed=seed, n_trades=n_trades).fetch(date)
-    statements = simulate_bank_statements(trades, seed=seed,
-                                          drop_rate=0.01, mutate_rate=0.02)
+    statements = demo_statements(trades, seed=seed)
     missing, unknown = unmatched(trades, statements)
-    prediction = suggest(trades, statements, Lineage(Registry()),
+    prediction = suggest(trades, statements, Lineage(_REGISTRY),
                          feedback=_FEEDBACK, min_score=0.4)
     return {
         "business_date": date, "seed": seed,
@@ -215,8 +251,32 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def _read_body(self):
-        length = int(self.headers.get("Content-Length", 0))
-        return json.loads(self.rfile.read(length))
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+        except ValueError:
+            raise BadRequest("en-tête Content-Length invalide")
+        if length < 0 or length > MAX_BODY_BYTES:
+            raise BadRequest(f"corps trop volumineux (max {MAX_BODY_BYTES} octets)")
+        try:
+            return json.loads(self.rfile.read(length))
+        except json.JSONDecodeError:
+            raise BadRequest("corps JSON invalide")
+
+    # Erreurs dont le message est sûr à renvoyer (validation métier, IAM,
+    # contrôles de gouvernance G9/G10). Tout le reste est masqué (S2).
+    _EXPECTED_ERRORS = (BadRequest, ValueError, PermissionError, KeyError)
+
+    def _fail(self, exc):
+        """Réponse d'erreur : message métier si l'erreur est attendue,
+        sinon message générique + trace serveur avec identifiant de
+        corrélation (l'utilisateur ne voit jamais l'interne — S2)."""
+        if isinstance(exc, self._EXPECTED_ERRORS):
+            self._send_json({"error": str(exc)}, status=400)
+        else:
+            ref = uuid.uuid4().hex[:12]
+            _LOG.exception("erreur inattendue [ref=%s] sur %s", ref, self.path)
+            self._send_json({"error": "erreur interne du serveur",
+                             "correlation_id": ref}, status=500)
 
     def do_POST(self):
         path = urlparse(self.path).path
@@ -251,21 +311,20 @@ class Handler(SimpleHTTPRequestHandler):
                 self._send_json(_ingest(self._read_body()))
             else:
                 self.send_error(404)
-        except Exception as exc:  # le message d'erreur EST la réponse (G9, G10...)
-            self._send_json({"error": str(exc)}, status=400)
+        except Exception as exc:  # attendue → message métier ; sinon masquée (S2)
+            self._fail(exc)
 
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == "/api/audit":
             entries = _AUDIT.entries()
-            registry = Registry()
             dictionary = [{
                 "urn": c["urn"], "domain": c["domain"], "name": c["name"],
                 "version": c["version"], "entity": c["output_schema"]["entity"],
                 "classification": c["access"]["classification"],
                 "owner": c["owner"], "sources": c["sources"],
                 "fields": c["output_schema"]["fields"],
-            } for c in registry.products.values()]
+            } for c in _REGISTRY.products.values()]
             self._send_json({
                 "total": len(entries),
                 "chain_intact": _AUDIT.verify_chain() is None,
@@ -279,7 +338,7 @@ class Handler(SimpleHTTPRequestHandler):
                 "status": "ok",
                 "time_utc": datetime.datetime.now(datetime.timezone.utc)
                             .isoformat(timespec="seconds"),
-                "products": len(Registry().catalog()),
+                "products": len(_REGISTRY.catalog()),
                 "duckdb": _wh.HAS_DUCKDB,
                 "audit_entries": len(_AUDIT.entries()),
                 "audit_chain_intact": _AUDIT.verify_chain() is None,
@@ -300,7 +359,7 @@ class Handler(SimpleHTTPRequestHandler):
                            "/api/accounting": _accounting_payload}[parsed.path]
                 self._send_json(builder(date, seed))
             except Exception as exc:
-                self._send_json({"error": str(exc)}, status=400)
+                self._fail(exc)
             return
         if parsed.path.startswith("/reports/"):
             name = Path(parsed.path).name  # neutralise toute traversée de chemin
@@ -325,7 +384,7 @@ class Handler(SimpleHTTPRequestHandler):
                 finally:
                     con.close()
             except Exception as exc:
-                self._send_json({"error": str(exc)}, status=400)
+                self._fail(exc)
             return
         if parsed.path != "/api/summary":
             return super().do_GET()
@@ -340,7 +399,7 @@ class Handler(SimpleHTTPRequestHandler):
         except ValueError:
             self.send_error(400, "seed et trades doivent être des entiers")
             return
-        body = json.dumps(build_payload(date, seed, n_trades)).encode("utf-8")
+        body = _summary_bytes(date, seed, n_trades)
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
@@ -379,7 +438,6 @@ def export(business_date, seed=42, n_trades=250):
                      _accounting_payload(business_date, seed))
     shutil.copy(STATIC_DIR / "faq.html", DIST_DIR / "faq.html")
     print("export faq.html")
-    registry = Registry()
     _export_embedded("audit.html",
                      '<script id="fcc-audit-config" type="application/json">null</script>',
                      {"total": len(_AUDIT.entries()),
@@ -391,7 +449,7 @@ def export(business_date, seed=42, n_trades=250):
                           "classification": c["access"]["classification"],
                           "owner": c["owner"], "sources": c["sources"],
                           "fields": c["output_schema"]["fields"]}
-                          for c in registry.products.values()],
+                          for c in _REGISTRY.products.values()],
                           key=lambda d: d["urn"])})
 
 

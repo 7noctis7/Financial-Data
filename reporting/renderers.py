@@ -119,8 +119,7 @@ NAVY, LIGHT, MID = "0.075 0.16 0.30", "0.955 0.955 0.945", "0.55 0.55 0.53"
 def render_pdf(title, columns, rows, annex_lines, summary_lines=None):
     """PDF institutionnel : bandeau de couverture, synthèse, tableau réglé,
     annexe de preuve sur page dédiée, pieds de page numérotés."""
-    LEFT, RIGHT, TOP, BOTTOM = 40, 555, 842, 60
-    n_cols = max(len(columns), 1)
+    LEFT, RIGHT, BOTTOM = 40, 555, 60
     weights = [max(len(c["label"]),
                    *( [8] + [len(_fmt_cell(r.get(c["key"], ""))) for r in rows[:60]] ))
                for c in columns]

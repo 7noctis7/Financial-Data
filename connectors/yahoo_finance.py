@@ -84,10 +84,12 @@ class YahooFinanceSource(DataSource):
         self.timeout = timeout
 
     def _get(self, ticker):
-        request = urllib.request.Request(
-            CHART_URL.format(ticker=ticker), headers={"User-Agent": USER_AGENT})
+        url = CHART_URL.format(ticker=ticker)
+        if not url.startswith("https://"):  # défense : jamais file:// ni http:// (B310)
+            raise YahooError(f"URL non HTTPS refusée : {url!r}")
+        request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:  # nosec B310 - schéma https vérifié ci-dessus
                 return json.loads(response.read().decode("utf-8"))
         except Exception as exc:  # réseau, HTTP, JSON — même refus explicite
             raise YahooError(f"{ticker}: {exc}") from exc

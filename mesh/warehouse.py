@@ -79,7 +79,7 @@ def build_warehouse(data_dir=DATA_DIR, warehouse_dir=WAREHOUSE_DIR):
         target = warehouse_dir / f"{table}.parquet"
         con.execute(
             "COPY (SELECT * FROM read_json_auto(?)) TO "
-            f"'{target.as_posix()}' (FORMAT PARQUET)",
+            f"'{target.as_posix()}' (FORMAT PARQUET)",  # nosec B608 - target = chemin d'entrepôt interne, données via paramètre lié
             [tmp.name],
         )
         Path(tmp.name).unlink()
@@ -89,14 +89,25 @@ def build_warehouse(data_dir=DATA_DIR, warehouse_dir=WAREHOUSE_DIR):
 
 
 def connect(warehouse_dir=WAREHOUSE_DIR):
-    """Connexion mémoire avec une vue par table Parquet de l'entrepôt."""
+    """Connexion mémoire, une TABLE par Parquet, accès disque verrouillé.
+
+    Sécurité (S1) : DuckDB peut lire n'importe quel fichier du système
+    DANS un SELECT (`read_csv('/etc/passwd')`, `glob('/**')`), ce qu'une
+    garde par verbe SQL ne bloque pas. On matérialise donc chaque Parquet
+    en table (données chargées une fois en mémoire), puis on coupe
+    définitivement l'accès externe : les requêtes légitimes sur les
+    tables passent, toute lecture de fichier arbitraire est refusée, et
+    l'option ne peut plus être réactivée en SQL (`lock_configuration`).
+    """
     if not HAS_DUCKDB:
         raise RuntimeError("duckdb n'est pas installé : pip install duckdb")
     con = duckdb.connect()
     for parquet in sorted(Path(warehouse_dir).glob("*.parquet")):
         path = parquet.as_posix().replace("'", "''")
         con.execute(
-            f'CREATE VIEW "{parquet.stem}" AS SELECT * FROM read_parquet(\'{path}\')')
+            f'CREATE TABLE "{parquet.stem}" AS SELECT * FROM read_parquet(\'{path}\')')  # nosec B608 - stem = nom de fichier interne contrôlé, pas d'entrée utilisateur
+    con.execute("SET enable_external_access=false")
+    con.execute("SET lock_configuration=true")
     return con
 
 
@@ -134,12 +145,12 @@ def schema(con):
     """Tables, colonnes et volumétrie — ce que l'explorateur affiche."""
     tables = []
     for (name,) in con.execute(
-            "SELECT view_name FROM duckdb_views() WHERE NOT internal ORDER BY view_name"
+            "SELECT table_name FROM duckdb_tables() WHERE NOT internal ORDER BY table_name"
     ).fetchall():
         columns = [
             {"name": c[0], "type": c[1]}
             for c in con.execute(f'DESCRIBE "{name}"').fetchall()
         ]
-        (count,) = con.execute(f'SELECT count(*) FROM "{name}"').fetchone()
+        (count,) = con.execute(f'SELECT count(*) FROM "{name}"').fetchone()  # nosec B608 - name vient de duckdb_tables(), pas d'entrée utilisateur
         tables.append({"name": name, "columns": columns, "rows": count})
     return tables

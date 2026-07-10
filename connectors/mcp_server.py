@@ -62,7 +62,7 @@ def _tool_reconcile(args):
 
 
 def _tool_report(args):
-    from reporting.generator import ReportGenerator, demo_assertions
+    from reporting.generator import ReportGenerator
     generator = ReportGenerator(audit_log=_LOG)
     return generator.demo(template_name=args["template"], fmt=args.get("format", "csv"),
                           requester=args.get("requester", "mcp-session"),

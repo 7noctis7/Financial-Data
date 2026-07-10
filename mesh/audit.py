@@ -35,15 +35,19 @@ class AuditLog:
         fichier falsifié refuse de s'ouvrir."""
         self._entries = []
         self._path = None
+        self._mtime = None            # signature du fichier au dernier chargement
+        self._verified_len = None     # longueur pour laquelle la chaîne est déjà vérifiée
         if path is not None:
             from pathlib import Path
             self._path = Path(path)
             if self._path.exists():
                 with self._path.open(encoding="utf-8") as fh:
                     self._load_lines(fh)
+                self._mtime = self._path.stat().st_mtime_ns
 
     def _load_lines(self, fh):
         self._entries = [json.loads(line) for line in fh if line.strip()]
+        self._verified_len = None  # contenu neuf : forcer une vérification fraîche
         broken = self.verify_chain()
         if broken is not None:
             raise ValueError(
@@ -84,24 +88,42 @@ class AuditLog:
         return entry["hash"]
 
     def reload(self):
-        """Relit le fichier (utile quand un autre processus a écrit)."""
-        if self._path is not None and self._path.exists():
-            with self._path.open(encoding="utf-8") as fh:
-                self._load_lines(fh)
+        """Relit le fichier SEULEMENT s'il a changé depuis le dernier
+        chargement (comparaison mtime). Évite de relire et re-parser tout
+        le journal à chaque requête HTTP (constat D1)."""
+        if self._path is None or not self._path.exists():
+            return
+        mtime = self._path.stat().st_mtime_ns
+        if mtime == self._mtime:
+            return  # inchangé : rien à relire
+        with self._path.open(encoding="utf-8") as fh:
+            self._load_lines(fh)
+        self._mtime = mtime
+        self._verified_len = None  # contenu rechargé : re-vérification nécessaire
 
     def entries(self):
         self.reload()
         return list(self._entries)
 
     def verify_chain(self):
-        """Recalcule toute la chaîne ; retourne l'index de la première
-        entrée falsifiée, ou None si le journal est intègre."""
+        """Recalcule la chaîne ; retourne l'index de la première entrée
+        falsifiée, ou None si le journal est intègre.
+
+        Mémoïsé (constat D1) : si le journal n'a pas changé depuis la
+        dernière vérification réussie (même longueur), on ne recalcule pas
+        tous les hashs. `_load_lines` (rechargement) réinitialise le cache,
+        donc une falsification arrivée par le fichier est toujours
+        recalculée. Les appelants du chemin chaud (`entries()` puis
+        `verify_chain()`) rechargent via `entries()` au préalable."""
+        if self._verified_len == len(self._entries):
+            return None
         prev_hash = GENESIS
         for i, entry in enumerate(self._entries):
             payload = {k: v for k, v in entry.items() if k not in ("prev_hash", "hash")}
             if entry["prev_hash"] != prev_hash or entry["hash"] != _hash_entry(prev_hash, payload):
                 return i
             prev_hash = entry["hash"]
+        self._verified_len = len(self._entries)
         return None
 
 

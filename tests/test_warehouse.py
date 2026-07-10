@@ -60,6 +60,26 @@ class TestWarehouse(unittest.TestCase):
         self.assertEqual(len(result["rows"]), 10)
         self.assertTrue(result["truncated"])
 
+    def test_arbitrary_file_read_is_blocked(self):
+        # Constat S1 : un SELECT ne doit jamais pouvoir lire un fichier du
+        # système. La garde par verbe l'autorise ; le verrouillage DuckDB
+        # (enable_external_access=false) doit le refuser.
+        for sql in ("SELECT * FROM read_csv_auto('/etc/hostname')",
+                    "SELECT * FROM read_text('/etc/hostname')",
+                    "SELECT * FROM glob('/*')"):
+            with self.assertRaises(Exception):
+                warehouse.query(self.con, sql)
+
+    def test_config_cannot_be_reenabled(self):
+        # L'attaquant ne doit pas pouvoir réactiver l'accès externe en SQL.
+        with self.assertRaises(Exception):
+            self.con.execute("SET enable_external_access=true")
+
+    def test_legitimate_query_still_works_after_lockdown(self):
+        # Le verrouillage ne casse pas les requêtes normales sur l'entrepôt.
+        result = warehouse.query(self.con, "SELECT count(*) AS n FROM trades")
+        self.assertEqual(result["rows"][0][0], 120)
+
 
 if __name__ == "__main__":
     unittest.main()

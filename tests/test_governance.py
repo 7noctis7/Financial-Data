@@ -77,6 +77,50 @@ class TestPersistentAuditLog(unittest.TestCase):
             self.assertEqual(len(check.entries()), 10)
             self.assertIsNone(check.verify_chain())
 
+    def test_reload_skips_unchanged_file(self):
+        # Constat D1 : reload() ne doit relire que si le fichier a changé.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "audit.jsonl"
+            log = AuditLog(path=path)
+            log.append("ops@fcc", "test", "urn:fcc:audit:journal", {}, "2026-07-09T10:00:00Z")
+            reader = AuditLog(path=path)
+            self.assertEqual(len(reader.entries()), 1)
+            calls = {"n": 0}
+            original = reader._load_lines
+            def counting(fh):
+                calls["n"] += 1
+                return original(fh)
+            reader._load_lines = counting
+            for _ in range(5):
+                reader.entries()      # fichier inchangé -> aucune relecture
+                reader.verify_chain()
+            self.assertEqual(calls["n"], 0)
+
+    def test_reload_detects_external_append(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "audit.jsonl"
+            writer = AuditLog(path=path)
+            reader = AuditLog(path=path)
+            writer.append("ops@fcc", "test", "urn:fcc:audit:journal", {}, "2026-07-09T10:00:00Z")
+            self.assertEqual(len(reader.entries()), 1)  # mtime a changé -> relu
+            self.assertIsNone(reader.verify_chain())
+
+    def test_verify_still_catches_tamper_after_memo(self):
+        # La mémoïsation ne doit jamais masquer une falsification.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "audit.jsonl"
+            log = AuditLog(path=path)
+            log.append("ops@fcc", "a", "urn:fcc:audit:journal", {"k": 1}, "2026-07-09T10:00:00Z")
+            log.append("ops@fcc", "b", "urn:fcc:audit:journal", {"k": 2}, "2026-07-09T10:01:00Z")
+            self.assertIsNone(log.verify_chain())  # mémoïse l'état sain
+            entries = [json.loads(l) for l in
+                       path.read_text(encoding="utf-8").strip().splitlines()]
+            entries[0]["details"]["k"] = 999
+            path.write_text("\n".join(json.dumps(e, ensure_ascii=False)
+                                      for e in entries) + "\n", encoding="utf-8")
+            with self.assertRaises(ValueError):  # reload (mtime) -> re-vérif fraîche
+                AuditLog(path=path)
+
     def test_tampered_file_refuses_to_open(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "audit.jsonl"
@@ -301,6 +345,17 @@ class TestProductionConnectivity(unittest.TestCase):
         from connectors.camt053 import Camt053Error, parse_camt053
         with self.assertRaises(Camt053Error):
             parse_camt053("<pas-du-camt/>")
+
+    def test_camt053_rejects_xxe_doctype(self):
+        # Le relevé vient d'une banque tierce : un DOCTYPE/ENTITY (vecteur
+        # XXE / billion laughs) doit être refusé AVANT parsing.
+        from connectors.camt053 import Camt053Error, parse_camt053
+        xxe = ('<?xml version="1.0"?>\n'
+               '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>\n'
+               '<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02">'
+               '<BkToCstmrStmt><Stmt>&xxe;</Stmt></BkToCstmrStmt></Document>')
+        with self.assertRaises(Camt053Error):
+            parse_camt053(xxe)
 
     def test_xbrl_format_produces_valid_instance(self):
         with tempfile.TemporaryDirectory() as tmp:

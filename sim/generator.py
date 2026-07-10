@@ -245,6 +245,19 @@ class SimulatedClientSource(DataSource):
                           f"{business_date}T06:00:00Z", records)
 
 
+# Profil de simulation de démonstration — SOURCE UNIQUE (constat D3).
+# Toutes les vues (dashboard, réconciliation, comptabilité) doivent
+# décrire la MÊME journée : mêmes relevés bancaires imparfaits pour une
+# date donnée. Ces taux donnent du travail réel au moteur de
+# réconciliation (retards + références mutilées) sans être irréalistes.
+DEMO_SCENARIO = {"drop_rate": 0.01, "mutate_rate": 0.02}
+
+
+def demo_statements(trades_batch, seed=42):
+    """Relevés du scénario de démonstration commun à toutes les pages."""
+    return simulate_bank_statements(trades_batch, seed=seed, **DEMO_SCENARIO)
+
+
 def simulate_bank_statements(trades_batch, seed=42, drop_rate=0.005, mutate_rate=0.0):
     """Relevés bancaires miroirs des trades réglés, imparfaits comme en vrai.
 

@@ -1,0 +1,4 @@
+# Seule dépendance du projet : l'entrepôt analytique DuckDB (optionnel).
+# Le noyau du mesh et le dashboard fonctionnent sans elle (stdlib pur).
+# Version épinglée pour un build CI reproductible (constat A1).
+duckdb==1.5.4

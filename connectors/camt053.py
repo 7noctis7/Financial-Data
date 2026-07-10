@@ -12,11 +12,20 @@ Usage :
     batch = parse_camt053(xml_text)          # origin=production par défaut
 """
 
+import re
 import xml.etree.ElementTree as ET
 
 from mesh.sources import PRODUCTION, make_batch
 
 NS = {"c": "urn:iso:std:iso:20022:tech:xsd:camt.053.001.02"}
+
+# Sécurité : un relevé XML vient d'une banque tierce — donnée NON de
+# confiance. On refuse toute déclaration de type de document (DOCTYPE /
+# ENTITY) avant de parser : c'est ce qui neutralise les attaques par
+# entités externes (XXE) et par expansion d'entités (« billion laughs »)
+# sans dépendance hors stdlib. Un camt.053 légitime n'a jamais de DTD.
+_DOCTYPE_RE = re.compile(r"<!(DOCTYPE|ENTITY)", re.IGNORECASE)
+MAX_XML_BYTES = 20 * 1024 * 1024  # borne anti-DoS mémoire sur un relevé
 
 
 class Camt053Error(ValueError):
@@ -25,8 +34,13 @@ class Camt053Error(ValueError):
 
 def parse_camt053(xml_text, origin=PRODUCTION):
     """camt.053 → batch de relevés (reference, amount signé, value_date)."""
+    text = xml_text if isinstance(xml_text, str) else xml_text.decode("utf-8", "ignore")
+    if len(text.encode("utf-8")) > MAX_XML_BYTES:
+        raise Camt053Error(f"relevé trop volumineux (max {MAX_XML_BYTES} octets)")
+    if _DOCTYPE_RE.search(text):
+        raise Camt053Error("déclaration DOCTYPE/ENTITY interdite (protection XXE)")
     try:
-        root = ET.fromstring(xml_text)
+        root = ET.fromstring(xml_text)  # nosec B314 - DOCTYPE/ENTITY rejeté en amont (garde XXE)
     except ET.ParseError as exc:
         raise Camt053Error(f"XML invalide : {exc}") from exc
     statements = root.findall(".//c:Stmt", NS)

@@ -12,7 +12,7 @@ from mesh.derivations import (FX_TO_EUR, derive_cash_positions, derive_exposures
 from mesh.pipeline import run_business_day
 from mesh.registry import Registry
 from sim.generator import (INSTRUMENTS, SimulatedMarketDataSource,
-                           SimulatedTradingSource, simulate_bank_statements)
+                           SimulatedTradingSource, demo_statements)
 
 CLASS_LABELS = {
     "govt_bond": "Obligations souveraines",
@@ -51,7 +51,7 @@ def _market_source(seed):
 def build_payload(business_date, seed=42, n_trades=250):
     source = SimulatedTradingSource(seed=seed, n_trades=n_trades)
     trades = source.fetch(business_date)
-    statements = simulate_bank_statements(trades, seed=seed)
+    statements = demo_statements(trades, seed=seed)
     cash = derive_cash_positions(trades, statements, business_date)
     exposures = derive_exposures(trades, business_date)
     market, market_note = _market_source(seed)
@@ -71,7 +71,7 @@ def build_payload(business_date, seed=42, n_trades=250):
             return prices
 
     summary = run_business_day(
-        business_date, source, lambda t: simulate_bank_statements(t, seed=seed),
+        business_date, source, lambda t: demo_statements(t, seed=seed),
         market_source=_Fetched)
 
     by_hour = Counter(int(t["executed_at"][11:13]) for t in trades["records"])
