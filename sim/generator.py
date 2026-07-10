@@ -225,11 +225,18 @@ class SimulatedClientSource(DataSource):
         records = []
         clients = ([(lei, name, "bank") for lei, name in COUNTERPARTY_NAMES.items()]
                    + self.EXTRA_CLIENTS)
+        import datetime
+        bd = datetime.date.fromisoformat(business_date)
         for i, (lei, name, client_type) in enumerate(clients):
             pep = rng.random() < 0.10
             residence = rng.choice(RESIDENCE_COUNTRIES)
             rating, rationale = kyc_rating(client_type, residence, pep)
-            review_days = rng.randint(10, 360)
+            # Ancienneté de la dernière revue étalée de façon réaliste (60 à
+            # 520 jours) : une partie du portefeuille dépasse le cycle annuel
+            # et apparaît « échue » — la vraie vie d'un service conformité,
+            # pas une alarme morte toujours à zéro.
+            review_age = rng.randint(60, 520)
+            last_review = (bd - datetime.timedelta(days=review_age)).isoformat()
             records.append({
                 "client_id": f"CLI-{i:04d}",
                 "lei": lei,
@@ -238,8 +245,7 @@ class SimulatedClientSource(DataSource):
                 "rating_rationale": rationale,
                 "pep": pep,
                 "residence_country": residence,
-                "last_review": f"{business_date[:4]}-01-01T00:00:00Z"
-                               if review_days > 300 else f"{business_date}T00:00:00Z",
+                "last_review": f"{last_review}T00:00:00Z",
             })
         return make_batch(self.product_urn, self.origin,
                           f"{business_date}T06:00:00Z", records)

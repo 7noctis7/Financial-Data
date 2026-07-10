@@ -86,6 +86,26 @@
     .card, .tile { border: 1px solid #ccc !important; break-inside: avoid; box-shadow: none !important; }
     a { color: inherit; text-decoration: none; }
   }
+
+  /* Couche d'animation professionnelle — sobre, désactivée si l'utilisateur
+     préfère moins de mouvement (accessibilité). */
+  @keyframes fcc-rise { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: none; } }
+  @keyframes fcc-shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+  button, .theme-btn, nav a, select, input { transition: background .15s ease, border-color .15s ease, color .15s ease, transform .08s ease, box-shadow .15s ease; }
+  button:active, .theme-btn:active { transform: translateY(1px); }
+  @media (prefers-reduced-motion: no-preference) {
+    .card, .tile { animation: fcc-rise .42s cubic-bezier(.22,.61,.36,1) both; }
+    .tile:nth-child(2) { animation-delay: .04s; } .tile:nth-child(3) { animation-delay: .08s; }
+    .tile:nth-child(4) { animation-delay: .12s; } .tile:nth-child(5) { animation-delay: .16s; }
+    .tile:nth-child(6) { animation-delay: .20s; }
+    .tile, .card { transition: transform .18s cubic-bezier(.22,.61,.36,1), box-shadow .18s ease; }
+    .tile:hover { transform: translateY(-2px); box-shadow: 0 6px 22px rgba(0,0,0,.09); }
+    tr.clickable, .clickable { transition: background .14s ease; }
+    #modal { animation: fcc-rise .22s cubic-bezier(.22,.61,.36,1) both; }
+  }
+  .fcc-skel { background: linear-gradient(90deg, var(--grid) 25%, var(--surface-1) 50%, var(--grid) 75%);
+              background-size: 800px 100%; animation: fcc-shimmer 1.3s infinite linear;
+              border-radius: 8px; min-height: 14px; }
 </style>
 </head>
 <body>
@@ -126,6 +146,7 @@
       <h2>Alertes du jour</h2>
       <p class="hint" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         Score explicable — modèle <code id="model"></code>
+        <span id="alert-filter"></span>
         <span style="flex:1"></span>
         <button class="theme-btn" id="csv-alerts" style="font-size:12px">⬇ CSV</button></p>
       <table id="alerts"><tr><th>Trade</th><th>Client</th><th class="num">Montant</th><th style="width:150px">Score</th><th>Pourquoi + typologies (norme au survol)</th><th></th></tr></table>
@@ -165,16 +186,37 @@ const WHY = { pep: "PEP", high_risk_country: "pays à risque", risk_rating: "not
 const explain = (f) => Object.entries(WHY).filter(([k]) => f[k] > 0)
   .map(([k, l]) => `${l} ${(f[k] * 100).toFixed(0)} %`).join(" · ") || "—";
 
+const REVIEW_CYCLE_DAYS = 365;  // revue périodique annuelle (LBA/OBA-FINMA)
+function reviewStatus(p, businessDate) {
+  if (!p.last_review) return { cls: "", label: "—", overdue: false };
+  const last = new Date(p.last_review.slice(0, 10));
+  const due = new Date(last); due.setDate(due.getDate() + REVIEW_CYCLE_DAYS);
+  const days = Math.round((new Date(businessDate) - due) / 86400000);
+  const dueStr = fmtDate(due.toISOString());
+  if (days > 0) return { cls: "high", label: `⚠ échue depuis ${days} j (${dueStr})`, overdue: true };
+  if (days > -30) return { cls: "medium", label: `bientôt (${dueStr})`, overdue: false };
+  return { cls: "low", label: `à jour (échéance ${dueStr})`, overdue: false };
+}
+
+let BUSINESS_DATE = "";
 function renderProfiles(profiles) {
   $("#profiles").innerHTML =
-    "<tr><th>Client</th><th>Notation</th><th>Drapeaux</th><th>Résidence</th></tr>" +
-    (profiles.length ? profiles.map((p) => `<tr>
+    "<tr><th>Client</th><th>Notation</th><th>Drapeaux</th><th>Résidence</th><th>Revue KYC</th></tr>" +
+    (profiles.length ? profiles.map((p) => {
+      const r = reviewStatus(p, BUSINESS_DATE);
+      return `<tr class="clickable" data-lei="${p.lei}" style="cursor:pointer" title="Cliquer : ne montrer que les alertes de ce client">
       <td>${p.name}<br><span class="why">${p.client_id} · LEI ${p.lei.slice(0, 8)}…</span>
         ${p.rating_rationale ? `<br><span class="why">↳ ${p.rating_rationale}</span>` : ""}</td>
       <td><span class="chip ${p.risk_rating}">${p.risk_rating}</span></td>
       <td>${p.pep ? '<span class="chip pep">PEP</span>' : ""}</td>
-      <td>${p.residence_country}</td></tr>`).join("")
-      : '<tr><td colspan="4" class="why">Aucun dossier ne correspond au filtre.</td></tr>');
+      <td>${p.residence_country}</td>
+      <td><span class="chip ${r.cls}">${r.label}</span></td></tr>`;
+    }).join("")
+      : '<tr><td colspan="5" class="why">Aucun dossier ne correspond au filtre.</td></tr>');
+  document.querySelectorAll("#profiles tr[data-lei]").forEach((row) => {
+    row.onclick = () => { window.__alertLei = window.__alertLei === row.dataset.lei ? null : row.dataset.lei;
+      if (window.__renderAlerts) window.__renderAlerts(); };
+  });
 }
 
 function exportAlertsCsv(data) {
@@ -188,24 +230,15 @@ function exportAlertsCsv(data) {
   link.click(); URL.revokeObjectURL(link.href);
 }
 
-function render(data) {
-  $("#kpis").innerHTML =
-    tile("Journée", fmtDate(data.business_date)) +
-    tile("Dossiers KYC", data.profiles.length) +
-    tile("PEP", data.pep_count) +
-    tile("Notation high", data.high_risk_count) +
-    tile("Trades criblés", data.screened_trades) +
-    tile("Alertes", data.alerts.length);
-  $("#model").textContent = data.model;
-  renderProfiles(data.profiles);
-  $("#f-rating").onchange = () => {
-    const f = $("#f-rating").value;
-    renderProfiles(data.profiles.filter((p) =>
-      !f || (f === "pep" ? p.pep : p.risk_rating === f)));
-  };
-  $("#csv-alerts").onclick = () => exportAlertsCsv(data);
+function renderAlerts(data) {
   const grid = $("#alerts");
-  for (const a of data.alerts) {
+  grid.innerHTML = '<tr><th>Trade</th><th>Client</th><th class="num">Montant</th><th style="width:150px">Score</th><th>Pourquoi + typologies (norme au survol)</th><th></th></tr>';
+  const lei = window.__alertLei;
+  const shown = lei ? data.alerts.filter((a) => a.lei === lei) : data.alerts;
+  $("#alert-filter").innerHTML = lei
+    ? `Filtre client <code>${lei.slice(0, 8)}…</code> (${shown.length}) — <a href="#" id="clear-lei" style="color:var(--accent)">tout afficher</a>` : "";
+  if (lei) $("#clear-lei").onclick = (e) => { e.preventDefault(); window.__alertLei = null; renderAlerts(data); };
+  for (const a of shown) {
     const row = grid.insertRow();
     row.innerHTML = `
       <td><code>${a.trade_id.slice(-9)}</code></td>
@@ -225,6 +258,28 @@ function render(data) {
       row.querySelector(".dis").onclick = () => decideRow(row, a, false);
     }
   }
+}
+
+function render(data) {
+  BUSINESS_DATE = data.business_date;
+  const overdue = data.profiles.filter((p) => reviewStatus(p, data.business_date).overdue).length;
+  $("#kpis").innerHTML =
+    tile("Journée", fmtDate(data.business_date)) +
+    tile("Dossiers KYC", data.profiles.length) +
+    tile("PEP", data.pep_count) +
+    tile("Notation high", data.high_risk_count) +
+    `<div class="tile"><div class="label">Revues KYC échues</div><div class="value" style="color:${overdue ? "var(--critical)" : "var(--good)"}">${overdue}</div></div>` +
+    tile("Alertes", data.alerts.length);
+  $("#model").textContent = data.model;
+  window.__renderAlerts = () => renderAlerts(data);
+  renderProfiles(data.profiles);
+  $("#f-rating").onchange = () => {
+    const f = $("#f-rating").value;
+    renderProfiles(data.profiles.filter((p) =>
+      !f || (f === "pep" ? p.pep : p.risk_rating === f)));
+  };
+  $("#csv-alerts").onclick = () => exportAlertsCsv(data);
+  renderAlerts(data);
   $("#note").innerHTML = (STATIC
     ? "Version en ligne : lecture seule — les décisions se prennent en local (<code>python3 -m app</code>). "
     : "Escalade et classement entrent dans la chaîne d'audit et calibrent les scores futurs (feedback <code>data/feedback-aml.jsonl</code>). ")
