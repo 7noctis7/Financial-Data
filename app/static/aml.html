@@ -133,10 +133,13 @@
     <div class="card">
       <h2>Dossiers KYC</h2>
       <p class="hint" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        Produit <code>client:kyc-profiles</code> — revue annuelle · filtrer :
+        Produit <code>client:kyc-profiles</code> — revue annuelle ·
+        <input id="f-search" type="search" placeholder="🔎 nom / ID / LEI"
+               style="font:inherit;font-size:12px;padding:4px 9px;border:1px solid var(--border);border-radius:8px;background:var(--page);color:var(--ink-1);min-width:170px">
         <select id="f-rating"><option value="">toutes notations</option>
           <option value="low">low</option><option value="medium">medium</option>
-          <option value="high">high</option><option value="pep">PEP uniquement</option></select></p>
+          <option value="high">high</option><option value="pep">PEP uniquement</option></select>
+        <span class="why">· cliquer un dossier ouvre le client 360°</span></p>
       <p class="hint" style="border:1px solid var(--border);border-radius:8px;padding:8px 10px">
         <b>Méthodologie de notation</b> (règles déclaratives, aucune notation arbitraire) :
         <b>high</b> = PEP déclaré OU juridiction à vigilance renforcée (liste interne alignée GAFI) ·
@@ -158,6 +161,9 @@
       <p class="note" id="note"></p>
     </div>
   </div>
+</div>
+<div id="modal-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:20px;z-index:50">
+  <div id="modal" style="background:var(--surface-1);border:1px solid var(--border);border-radius:14px;max-width:680px;width:100%;max-height:86vh;overflow:auto;padding:20px 22px"></div>
 </div>
 
 <script>
@@ -219,10 +225,61 @@ function renderProfiles(profiles) {
     }).join("")
       : '<tr><td colspan="5" class="why">Aucun dossier ne correspond au filtre.</td></tr>');
   document.querySelectorAll("#profiles tr[data-lei]").forEach((row) => {
-    row.onclick = () => { window.__alertLei = window.__alertLei === row.dataset.lei ? null : row.dataset.lei;
-      if (window.__renderAlerts) window.__renderAlerts(); };
+    row.onclick = () => { if (window.__openDossier) window.__openDossier(row.dataset.lei); };
   });
 }
+
+// Dossier client 360° : identité, notation justifiée, revue, alertes du
+// client, OSINT (état honnête : pas de connecteur = n/d, jamais un faux).
+function openDossier(p, data) {
+  const r = reviewStatus(p, BUSINESS_DATE);
+  const alerts = data.alerts.filter((a) => a.lei === p.lei);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  const alertRows = alerts.length ? alerts.map((a) => `
+      <tr><td><code>${a.trade_id.slice(-9)}</code></td>
+      <td class="num">${fmtEur(a.amount_eur)}</td>
+      <td><span class="pct">${(a.score * 100).toFixed(0)} %</span></td>
+      <td class="why">${(a.typologies || []).map((t) => t.id).join(", ") || explain(a.features)}</td></tr>`).join("")
+    : '<tr><td colspan="4" class="why">Aucune alerte sur l\'activité du jour.</td></tr>';
+  const enhanced = p.pep || p.risk_rating === "high";
+  const osint = enhanced
+    ? `<p class="why" style="border:1px dashed var(--warning);border-radius:8px;padding:8px 10px;margin:6px 0 0">
+        Vigilance renforcée requise (${p.pep ? "PEP" : "notation high"}) — vérification sources ouvertes :
+        <b>n/d — connecteur OSINT non branché.</b> Chaque élément OSINT sera affiché avec source + URL +
+        date de consultation, étiqueté <i>open-source intelligence</i>, jamais fusionné avec les données certifiées.</p>`
+    : '<p class="why" style="margin:6px 0 0">Dossier standard : vérification OSINT non requise à ce stade.</p>';
+  $("#modal").innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px">
+      <h3 style="margin:0;font-size:16px">${esc(p.name)}</h3>
+      ${p.pep ? '<span class="chip pep">PEP</span>' : ""}<span class="chip ${p.risk_rating}">${p.risk_rating}</span>
+      <span style="flex:1"></span><button class="theme-btn" id="modal-close">Fermer</button></div>
+    <p class="why" style="margin:4px 0 12px">${esc(p.client_id)} · LEI <code>${esc(p.lei)}</code> · résidence ${esc(p.residence_country)} ·
+      donnée <i>restricted</i> (RGPD), provenance simulée</p>
+    <p class="hint" style="border:1px solid var(--border);border-radius:8px;padding:8px 10px">
+      <b>Notation ${p.risk_rating}</b> — règle : ${esc(p.rating_rationale || "n/d")}</p>
+    <p class="hint">Revue KYC : <span class="chip ${r.cls}">${r.label}</span>
+      ${r.overdue ? ' → un cas est ouvert dans la <a href="cases.html" style="color:var(--accent)">file de traitement</a>' : ""}</p>
+    <h4 style="margin:12px 0 4px;font-size:13px">Alertes du jour (${alerts.length})</h4>
+    <div class="tscroll"><table>
+      <tr><th>Trade</th><th class="num">Montant</th><th>Score</th><th>Typologies / facteurs</th></tr>${alertRows}
+    </table></div>
+    ${alerts.length ? `<p style="margin:8px 0 0"><a href="#" id="dossier-filter" style="color:var(--accent);font-size:13px;font-weight:600">Filtrer ses alertes dans le tableau principal →</a></p>` : ""}
+    <h4 style="margin:14px 0 2px;font-size:13px">Due diligence renforcée (OSINT)</h4>
+    ${osint}
+    <p class="note">Toutes les données ci-dessus proviennent des produits certifiés du mesh
+      (client:kyc-profiles, trading:executed-trades) — rien n'est saisi ni inventé.</p>`;
+  $("#modal-bg").style.display = "flex";
+  $("#modal-close").onclick = () => { $("#modal-bg").style.display = "none"; };
+  const flt = $("#dossier-filter");
+  if (flt) flt.onclick = (e) => { e.preventDefault(); window.__alertLei = p.lei;
+    if (window.__renderAlerts) window.__renderAlerts();
+    $("#modal-bg").style.display = "none";
+    document.querySelector("#alerts").scrollIntoView({ behavior: "smooth" }); };
+}
+document.addEventListener("DOMContentLoaded", () => {
+  $("#modal-bg").onclick = (e) => { if (e.target.id === "modal-bg") $("#modal-bg").style.display = "none"; };
+});
 
 function exportAlertsCsv(data) {
   const head = "trade_id;client;montant_eur;score;facteurs";
@@ -274,15 +331,27 @@ function render(data) {
     tile("PEP", data.pep_count) +
     tile("Notation high", data.high_risk_count) +
     `<div class="tile"><div class="label">Revues KYC échues</div><div class="value" style="color:${overdue ? "var(--critical)" : "var(--good)"}">${overdue}</div></div>` +
-    tile("Alertes", data.alerts.length);
+    `<div class="tile"><div class="label">Entonnoir criblage</div>
+      <div class="value">${data.screened_trades.toLocaleString("fr-FR")} → ${data.alerts.length}</div>
+      <div class="why">criblés → alertes (${(data.alerts.length / (data.screened_trades || 1) * 100).toFixed(1)} %) → <a href="cases.html" style="color:var(--accent)">cas</a></div></div>`;
   $("#model").textContent = data.model;
   window.__renderAlerts = () => renderAlerts(data);
-  renderProfiles(data.profiles);
-  $("#f-rating").onchange = () => {
-    const f = $("#f-rating").value;
-    renderProfiles(data.profiles.filter((p) =>
-      !f || (f === "pep" ? p.pep : p.risk_rating === f)));
+  window.__openDossier = (lei) => {
+    const p = data.profiles.find((x) => x.lei === lei);
+    if (p) openDossier(p, data);
   };
+  const applyProfileFilters = () => {
+    const f = $("#f-rating").value;
+    const q = ($("#f-search").value || "").trim().toLowerCase();
+    renderProfiles(data.profiles.filter((p) =>
+      (!f || (f === "pep" ? p.pep : p.risk_rating === f))
+      && (!q || p.name.toLowerCase().includes(q)
+          || p.client_id.toLowerCase().includes(q)
+          || p.lei.toLowerCase().includes(q))));
+  };
+  renderProfiles(data.profiles);
+  $("#f-rating").onchange = applyProfileFilters;
+  $("#f-search").oninput = applyProfileFilters;
   $("#csv-alerts").onclick = () => exportAlertsCsv(data);
   renderAlerts(data);
   $("#note").innerHTML = (STATIC
