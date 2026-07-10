@@ -45,9 +45,12 @@
   .tile { background: var(--surface-1); border: 1px solid var(--border);
           border-radius: 12px; padding: 13px 16px; }
   .tile .label { font-size: 12px; color: var(--ink-2); }
-  .tile .value { font-size: 24px; font-weight: 600; }
-  .cols { display: grid; grid-template-columns: 1fr 1.4fr; gap: 12px; align-items: start; }
-  @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
+  .tile .value { font-size: 20px; font-weight: 600; white-space: nowrap;
+                 overflow: hidden; text-overflow: ellipsis; }
+  .tscroll { overflow-x: auto; }  /* tableau large : scroll DANS le cadre, jamais la page */
+  /* Deux tableaux denses (KYC + alertes) empilés en pleine largeur : le texte
+     respire, aucun débordement hors cadre (standard comité §3-V). */
+  .cols { display: grid; grid-template-columns: 1fr; gap: 12px; align-items: start; }
   .card { background: var(--surface-1); border: 1px solid var(--border);
           border-radius: 12px; padding: 16px; min-width: 0; }
   .card h2 { font-size: 14px; font-weight: 650; margin: 0 0 2px; }
@@ -55,9 +58,10 @@
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th { text-align: left; color: var(--ink-muted); font-weight: 500; font-size: 12px;
        padding: 6px 8px; border-bottom: 1px solid var(--grid); }
-  td { padding: 7px 8px; border-bottom: 1px solid var(--grid); vertical-align: middle; }
+  td { padding: 7px 8px; border-bottom: 1px solid var(--grid); vertical-align: middle;
+       overflow-wrap: anywhere; }
   tr:last-child td { border-bottom: none; }
-  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 650;
           padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); }
   .chip.low { color: var(--good); border-color: var(--good); }
@@ -67,7 +71,7 @@
   .meter { flex: 1; height: 7px; border-radius: 4px; background: var(--track); overflow: hidden; }
   .meter > div { height: 100%; background: var(--accent); border-radius: 4px; }
   .pct { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 12px; }
-  .why { color: var(--ink-muted); font-size: 11px; }
+  .why { color: var(--ink-muted); font-size: 11px; overflow-wrap: anywhere; }
   .actions { white-space: nowrap; }
   .actions button { border: 1px solid var(--border); background: var(--surface-1);
     color: var(--ink-1); font: inherit; font-size: 12px; font-weight: 600;
@@ -140,7 +144,7 @@
         <b>PEP</b> = personne politiquement exposée au sens des obligations LBC-FT, déclarée à
         l'entrée en relation ⇒ vigilance renforcée obligatoire. La justification exacte de chaque
         dossier est affichée sous son nom.</p>
-      <table id="profiles"></table>
+      <div class="tscroll"><table id="profiles"></table></div>
     </div>
     <div class="card">
       <h2>Alertes du jour</h2>
@@ -149,7 +153,7 @@
         <span id="alert-filter"></span>
         <span style="flex:1"></span>
         <button class="theme-btn" id="csv-alerts" style="font-size:12px">⬇ CSV</button></p>
-      <table id="alerts"><tr><th>Trade</th><th>Client</th><th class="num">Montant</th><th style="width:150px">Score</th><th>Pourquoi + typologies (norme au survol)</th><th></th></tr></table>
+      <div class="tscroll"><table id="alerts"><tr><th>Trade</th><th>Client</th><th class="num">Montant</th><th style="width:150px">Score</th><th>Pourquoi + typologies (norme au survol)</th><th></th></tr></table></div>
       <p class="note" id="note"></p>
     </div>
   </div>
