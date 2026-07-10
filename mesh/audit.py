@@ -29,8 +29,22 @@ class AuditLog:
     en aval — `verify_chain` le détecte sans état externe.
     """
 
-    def __init__(self):
+    def __init__(self, path=None):
+        """`path` optionnel : persistance JSONL append-only. À l'ouverture,
+        le journal existant est rechargé et sa chaîne re-vérifiée — un
+        fichier falsifié refuse de s'ouvrir."""
         self._entries = []
+        self._path = None
+        if path is not None:
+            from pathlib import Path
+            self._path = Path(path)
+            if self._path.exists():
+                with self._path.open(encoding="utf-8") as fh:
+                    self._entries = [json.loads(line) for line in fh if line.strip()]
+                broken = self.verify_chain()
+                if broken is not None:
+                    raise ValueError(
+                        f"journal d'audit corrompu à l'entrée {broken} : {self._path}")
 
     def append(self, actor, action, subject_urn, details, timestamp):
         payload = {
@@ -44,6 +58,10 @@ class AuditLog:
         prev_hash = self._entries[-1]["hash"] if self._entries else GENESIS
         entry = dict(payload, prev_hash=prev_hash, hash=_hash_entry(prev_hash, payload))
         self._entries.append(entry)
+        if self._path is not None:
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            with self._path.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
         return entry["hash"]
 
     def entries(self):

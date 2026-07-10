@@ -44,6 +44,41 @@ class TestIAM(unittest.TestCase):
         self.assertIsNone(log.verify_chain())
 
 
+class TestPersistentAuditLog(unittest.TestCase):
+    def test_reload_preserves_chain_and_continues_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "audit.jsonl"
+            log = AuditLog(path=path)
+            h1 = log.append("ops@fcc", "test.first", "urn:fcc:audit:journal",
+                            {"k": 1}, "2026-07-09T10:00:00Z")
+            reloaded = AuditLog(path=path)
+            self.assertEqual(len(reloaded.entries()), 1)
+            self.assertIsNone(reloaded.verify_chain())
+            h2 = reloaded.append("ops@fcc", "test.second", "urn:fcc:audit:journal",
+                                 {"k": 2}, "2026-07-09T10:01:00Z")
+            self.assertEqual(reloaded.entries()[1]["prev_hash"], h1)
+            self.assertNotEqual(h1, h2)
+            # le fichier contient bien les deux entrées, une par ligne
+            lines = path.read_text(encoding="utf-8").strip().splitlines()
+            self.assertEqual(len(lines), 2)
+
+    def test_tampered_file_refuses_to_open(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "audit.jsonl"
+            log = AuditLog(path=path)
+            log.append("ops@fcc", "test.first", "urn:fcc:audit:journal",
+                       {"k": 1}, "2026-07-09T10:00:00Z")
+            log.append("ops@fcc", "test.second", "urn:fcc:audit:journal",
+                       {"k": 2}, "2026-07-09T10:01:00Z")
+            entries = [json.loads(l) for l in
+                       path.read_text(encoding="utf-8").strip().splitlines()]
+            entries[0]["details"]["k"] = 999  # falsification a posteriori
+            path.write_text("\n".join(json.dumps(e, ensure_ascii=False)
+                                      for e in entries) + "\n", encoding="utf-8")
+            with self.assertRaises(ValueError):
+                AuditLog(path=path)
+
+
 class TestReconciliation(unittest.TestCase):
     def setUp(self):
         self.trades = SimulatedTradingSource(seed=42, n_trades=2000).fetch(DATE)

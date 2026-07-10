@@ -35,7 +35,7 @@ RECON_PLACEHOLDER = '<script id="fcc-recon-config" type="application/json">null<
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 PORT = 8787
 
-_AUDIT = AuditLog()          # journal chaîné de la session serveur
+_AUDIT = AuditLog(REPO_ROOT / "data" / "audit-server.jsonl")  # persistant, chaîné
 _FEEDBACK = FeedbackStore(REPO_ROOT / "data" / "feedback.jsonl")
 
 
@@ -256,6 +256,23 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
+        if parsed.path == "/api/audit":
+            entries = _AUDIT.entries()
+            registry = Registry()
+            dictionary = [{
+                "urn": c["urn"], "domain": c["domain"], "name": c["name"],
+                "version": c["version"], "entity": c["output_schema"]["entity"],
+                "classification": c["access"]["classification"],
+                "owner": c["owner"], "sources": c["sources"],
+                "fields": c["output_schema"]["fields"],
+            } for c in registry.products.values()]
+            self._send_json({
+                "total": len(entries),
+                "chain_intact": _AUDIT.verify_chain() is None,
+                "entries": entries[-200:][::-1],
+                "dictionary": sorted(dictionary, key=lambda d: d["urn"]),
+            })
+            return
         if parsed.path == "/api/health":
             from mesh import warehouse as _wh
             self._send_json({
@@ -362,6 +379,20 @@ def export(business_date, seed=42, n_trades=250):
                      _accounting_payload(business_date, seed))
     shutil.copy(STATIC_DIR / "faq.html", DIST_DIR / "faq.html")
     print("export faq.html")
+    registry = Registry()
+    _export_embedded("audit.html",
+                     '<script id="fcc-audit-config" type="application/json">null</script>',
+                     {"total": len(_AUDIT.entries()),
+                      "chain_intact": _AUDIT.verify_chain() is None,
+                      "entries": _AUDIT.entries()[-100:][::-1],
+                      "dictionary": sorted([{
+                          "urn": c["urn"], "domain": c["domain"], "name": c["name"],
+                          "version": c["version"], "entity": c["output_schema"]["entity"],
+                          "classification": c["access"]["classification"],
+                          "owner": c["owner"], "sources": c["sources"],
+                          "fields": c["output_schema"]["fields"]}
+                          for c in registry.products.values()],
+                          key=lambda d: d["urn"])})
 
 
 def _export_reports(business_date):

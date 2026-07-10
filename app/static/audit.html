@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Audit & Données — Financial Command Center</title>
+<style>
+  :root {
+    --surface-1: #fcfcfb; --page: #f9f9f7;
+    --ink-1: #0b0b0b; --ink-2: #52514e; --ink-muted: #898781;
+    --grid: #e1e0d9; --border: rgba(11,11,11,0.10);
+    --accent: #2a78d6; --accent-wash: rgba(42,120,214,0.10);
+    --good: #0ca30c; --good-text: #006300; --critical: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --surface-1: #1a1a19; --page: #0d0d0d;
+      --ink-1: #ffffff; --ink-2: #c3c2b7; --ink-muted: #898781;
+      --grid: #2c2c2a; --border: rgba(255,255,255,0.10);
+      --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16);
+      --good-text: #0ca30c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --surface-1: #1a1a19; --page: #0d0d0d;
+    --ink-1: #ffffff; --ink-2: #c3c2b7; --ink-muted: #898781;
+    --grid: #2c2c2a; --border: rgba(255,255,255,0.10);
+    --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16);
+    --good-text: #0ca30c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink-1);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 20px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 4px; }
+  h1 { font-size: 20px; font-weight: 650; margin: 0; }
+  nav { display: flex; gap: 6px; flex-wrap: wrap; }
+  nav a, .theme-btn {
+    color: var(--ink-2); text-decoration: none; font-size: 13px; font-weight: 600;
+    padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px;
+    background: var(--surface-1); cursor: pointer; font-family: inherit;
+  }
+  nav a:hover, .theme-btn:hover { background: var(--accent-wash); }
+  nav a.current { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .sub { color: var(--ink-2); margin: 0 0 16px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          gap: 12px; margin-bottom: 14px; }
+  .tile { background: var(--surface-1); border: 1px solid var(--border);
+          border-radius: 12px; padding: 13px 16px; }
+  .tile .label { font-size: 12px; color: var(--ink-2); }
+  .tile .value { font-size: 24px; font-weight: 600; }
+  .tile .value.ok { color: var(--good-text); } .tile .value.ko { color: var(--critical); }
+  .card { background: var(--surface-1); border: 1px solid var(--border);
+          border-radius: 12px; padding: 16px; margin-bottom: 12px; overflow-x: auto; }
+  .card h2 { font-size: 14px; font-weight: 650; margin: 0 0 2px; }
+  .hint { font-size: 12px; color: var(--ink-muted); margin: 0 0 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
+  th { text-align: left; color: var(--ink-muted); font-weight: 500;
+       padding: 6px 8px; border-bottom: 1px solid var(--grid); }
+  td { padding: 6px 8px; border-bottom: 1px solid var(--grid); }
+  tr:last-child td { border-bottom: none; }
+  code { font-size: 11px; }
+  select { padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px;
+           background: var(--page); color: var(--ink-1); font: inherit; }
+  .chip { font-size: 11px; font-weight: 650; padding: 1px 8px; border-radius: 999px;
+          border: 1px solid var(--border); color: var(--ink-2); }
+</style>
+</head>
+<body>
+<script id="fcc-audit-config" type="application/json">null</script>
+<div class="wrap">
+  <header>
+    <h1>Audit &amp; Données</h1>
+    <nav><a href="aml.html">1·KYC/AML</a><a href="ingest.html">2·Ingestion</a><a href="index.html">3·Marchés</a><a href="recon.html">4·Réconciliation</a><a href="accounting.html">5·Comptabilité</a><a href="explorer.html">6·Explorateur</a><a href="reports.html">7·Rapports</a><a href="audit.html" class="current">Audit</a><a href="faq.html">FAQ</a></nav>
+    <span style="flex:1"></span>
+    <button class="theme-btn" id="theme"></button>
+  </header>
+  <p class="sub">Le <b>journal d'audit chaîné</b> (persistant : chaque action de l'application —
+  ingestions, décisions 4 yeux, rapports, refus — y entre définitivement, chaque entrée scellant
+  la précédente par SHA-256) et le <b>dictionnaire de données</b>, généré automatiquement depuis
+  les contrats des Data Products.</p>
+  <div class="kpis" id="kpis"></div>
+  <div class="card">
+    <h2>Journal d'audit</h2>
+    <p class="hint" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      Dernières entrées (les plus récentes en premier) — filtrer :
+      <select id="f-action"><option value="">toutes les actions</option></select>
+    </p>
+    <table id="journal"></table>
+  </div>
+  <div class="card">
+    <h2>Dictionnaire de données</h2>
+    <p class="hint">Généré depuis les contrats <code>domains/*/product.json</code> — la doc ne peut pas diverger du code</p>
+    <div id="dictionary"></div>
+  </div>
+</div>
+<script>
+"use strict";
+(() => { /* thème partagé */
+  const THEMES = ["auto", "light", "dark"], LABELS = { auto: "◐ Auto", light: "☀ Clair", dark: "● Sombre" };
+  const apply = (t) => {
+    if (t === "auto") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", t);
+    const b = document.querySelector("#theme"); if (b) b.textContent = LABELS[t];
+  };
+  let theme = localStorage.getItem("fcc-theme") || "auto";
+  apply(theme);
+  addEventListener("DOMContentLoaded", () => { apply(theme);
+    document.querySelector("#theme").onclick = () => {
+      theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+      localStorage.setItem("fcc-theme", theme); apply(theme); };
+  });
+})();
+
+const $ = (s) => document.querySelector(s);
+const config = JSON.parse($("#fcc-audit-config").textContent);
+const tile = (label, value, cls) =>
+  `<div class="tile"><div class="label">${label}</div><div class="value ${cls || ""}">${value}</div></div>`;
+
+function renderJournal(entries, filter) {
+  const rows = entries.filter((e) => !filter || e.action === filter);
+  $("#journal").innerHTML =
+    "<tr><th>#</th><th>Horodatage</th><th>Acteur</th><th>Action</th><th>Sujet</th><th>Empreinte</th></tr>" +
+    (rows.length ? rows.map((e) => `<tr>
+      <td>${e.index}</td><td>${e.timestamp || "—"}</td><td>${e.actor}</td>
+      <td><span class="chip">${e.action}</span></td>
+      <td><code>${(e.subject_urn || "").replace("urn:fcc:", "")}</code></td>
+      <td><code>${e.hash.slice(0, 16)}…</code></td></tr>`).join("")
+      : "<tr><td colspan='6' style='color:var(--ink-muted)'>Aucune entrée — utilise l'application (ingestion, décisions, rapports) et le journal se remplit définitivement.</td></tr>");
+}
+
+function render(data) {
+  $("#kpis").innerHTML =
+    tile("Entrées au journal", data.total.toLocaleString("fr-FR")) +
+    tile("Chaîne SHA-256", data.chain_intact ? "✓ Intègre" : "✕ CORROMPUE",
+         data.chain_intact ? "ok" : "ko") +
+    tile("Data Products", data.dictionary.length) +
+    tile("Persistance", "JSONL append-only");
+  const actions = [...new Set(data.entries.map((e) => e.action))].sort();
+  $("#f-action").innerHTML = '<option value="">toutes les actions</option>' +
+    actions.map((a) => `<option>${a}</option>`).join("");
+  $("#f-action").onchange = () => renderJournal(data.entries, $("#f-action").value);
+  renderJournal(data.entries, "");
+  $("#dictionary").innerHTML = data.dictionary.map((d) => `
+    <h2 style="margin-top:14px"><code>${d.urn.replace("urn:fcc:", "")}</code>
+      <span class="chip">${d.classification}</span>
+      <span class="chip">v${d.version}</span>
+      <span class="chip">${d.owner}</span></h2>
+    <p class="hint">Entité d'ontologie : <code>${d.entity}</code> — sources : ${
+      d.sources.length ? d.sources.map((s) => "<code>" + s.replace("urn:fcc:", "") + "</code>").join(", ") : "produit source"}</p>
+    <table><tr><th>Champ</th><th>Type</th><th>Terme d'ontologie</th></tr>${
+      d.fields.map((f) => `<tr><td><code>${f.name}</code></td><td>${f.type}</td>
+        <td>${f.ontology_term ? "<code>" + f.ontology_term + "</code>" : "—"}</td></tr>`).join("")}</table>`).join("");
+}
+
+(async () => {
+  if (config !== null) { render(config); return; }
+  const res = await fetch("/api/audit");
+  const data = await res.json();
+  if (!res.ok) { $("#kpis").textContent = data.error; return; }
+  render(data);
+})();
+</script>
+</body>
+</html>
