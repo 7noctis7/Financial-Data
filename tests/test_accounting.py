@@ -53,3 +53,35 @@ class TestGeneralLedger(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPnlAndOffBalance(unittest.TestCase):
+    def setUp(self):
+        from mesh.fees import derive_fees
+        trades = SimulatedTradingSource(seed=42, n_trades=250).fetch(DATE)
+        statements = simulate_bank_statements(trades, seed=42)
+        self.trades = trades
+        from mesh.accounting import derive_ledger
+        self.ledger = derive_ledger(trades, statements, DATE,
+                                    fees_batch=derive_fees(trades, DATE))
+
+    def test_pnl_revenue_equals_fee_income_account(self):
+        from mesh.accounting import pnl_summary, trial_balance
+        from mesh.derivations import FX_TO_EUR
+        balance = trial_balance(self.ledger)
+        pnl = pnl_summary(balance)
+        expected = round(sum(-a["balance"] * FX_TO_EUR[a["currency"]]
+                             for a in balance["accounts"] if a["account_code"] == "7000"), 2)
+        self.assertEqual(pnl["chiffre_affaires"], expected)
+        self.assertEqual(pnl["excedent_brut"], pnl["chiffre_affaires"])  # charges hors périmètre
+        self.assertGreater(pnl["resultat_net"], 0)
+
+    def test_off_balance_sheet_only_live_derivatives(self):
+        from mesh.accounting import off_balance_sheet
+        obs = off_balance_sheet(self.trades)
+        labels = {l["engagement"] for l in obs["lines"]}
+        self.assertTrue(labels.issubset({"Swaps de taux (IRS)", "Change à terme (FX forward)"}))
+        self.assertAlmostEqual(obs["total_notionnel_eur"],
+                               round(sum(l["notionnel_eur"] for l in obs["lines"]), 2), places=2)
+        # aucun titre au comptant ni trade annulé dans le hors-bilan
+        self.assertGreater(obs["total_notionnel_eur"], 0)

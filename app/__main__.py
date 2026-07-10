@@ -157,16 +157,22 @@ INGEST_MAPPING = {
 
 
 def _accounting_payload(date, seed=42, n_trades=250):
-    from mesh.accounting import derive_ledger, trial_balance
+    from mesh.accounting import (derive_ledger, off_balance_sheet, pnl_summary,
+                                 trial_balance)
+    from mesh.fees import derive_fees
     from sim.generator import SimulatedTradingSource, demo_statements
     trades = SimulatedTradingSource(seed=seed, n_trades=n_trades).fetch(date)
     statements = demo_statements(trades, seed=seed)
-    ledger = derive_ledger(trades, statements, date)
+    # Grand livre AVEC commissions : cohérent avec le bilan/PnL certifiés (D3).
+    ledger = derive_ledger(trades, statements, date,
+                           fees_batch=derive_fees(trades, date))
     balance = trial_balance(ledger)
     return {
         "business_date": date, "seed": seed, "origin": ledger["origin"],
         "entries": ledger["records"][-14:][::-1],
         "trial_balance": balance,
+        "pnl": pnl_summary(balance),
+        "off_balance_sheet": off_balance_sheet(trades),
     }
 
 

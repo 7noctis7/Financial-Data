@@ -134,3 +134,49 @@ def trial_balance(ledger_batch):
         "balanced": all(balanced_by_currency.values()) if balanced_by_currency else True,
         "suspense": suspense,
     }
+
+
+def pnl_summary(balance):
+    """Compte de résultat condensé dérivé de la balance (SIG v1).
+
+    Produit = commissions perçues (compte 7000, solde créditeur), converties
+    EUR. Charges d'exploitation hors périmètre v1 (salaires, frais généraux
+    non modélisés) → EBE = résultat = CA. Aucun chiffre inventé."""
+    from .derivations import FX_TO_EUR
+    revenue = round(sum(-a["balance"] * FX_TO_EUR[a["currency"]]
+                        for a in balance["accounts"]
+                        if a["account_code"] == FEE_INCOME[0]), 2)
+    return {
+        "chiffre_affaires": revenue,
+        "charges_exploitation": 0.0,
+        "excedent_brut": revenue,
+        "resultat_net": revenue,
+        "note": "produits = commissions (7000) ; charges hors périmètre v1 → EBE = CA",
+    }
+
+
+def off_balance_sheet(trades_batch):
+    """Engagements HORS BILAN : notionnels des dérivés vivants (IRS, change à
+    terme). Un notionnel est un engagement de référence, PAS une valeur au
+    bilan — jamais confondu avec une valorisation (honnêteté épistémique)."""
+    from .derivations import FX_TO_EUR
+    by_class = {}
+    for trade in trades_batch["records"]:
+        if trade["status"] == "cancelled":
+            continue
+        iid = trade["instrument_id"]
+        if iid.startswith("INT:IRS"):
+            label = "Swaps de taux (IRS)"
+        elif iid.startswith("INT:FXF"):
+            label = "Change à terme (FX forward)"
+        else:
+            continue
+        eur = trade["notional"]["amount"] * FX_TO_EUR[trade["notional"]["currency"]]
+        by_class[label] = by_class.get(label, 0.0) + eur
+    lines = [{"engagement": k, "notionnel_eur": round(v, 2)}
+             for k, v in sorted(by_class.items())]
+    return {
+        "lines": lines,
+        "total_notionnel_eur": round(sum(by_class.values()), 2),
+        "note": "notionnel de référence (engagement) — non valorisé au bilan",
+    }

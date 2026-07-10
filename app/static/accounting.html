@@ -137,6 +137,22 @@
       <p class="note" id="note"></p>
     </div>
   </div>
+  <div class="cols">
+    <div class="card">
+      <h2>Compte de résultat (SIG v1)</h2>
+      <p class="hint">Soldes intermédiaires de gestion dérivés du grand livre — produit
+        <code>fees:revenues</code> (compte 7000)</p>
+      <table id="pnl"></table>
+      <p class="note" id="pnl-note"></p>
+    </div>
+    <div class="card">
+      <h2>Hors bilan — engagements</h2>
+      <p class="hint">Notionnels des dérivés vivants (IRS, change à terme) : engagement de
+        référence, <b>non valorisé</b> au bilan</p>
+      <table id="obs"></table>
+      <p class="note" id="obs-note"></p>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -191,10 +207,16 @@ function render(data) {
   $("#kpis").innerHTML =
     tile("Journée", fmtDate(data.business_date)) +
     tile("Écritures", tb.entries.toLocaleString("fr-FR"), "", "partie double") +
-    tile("Le bilan boucle", tb.balanced ? "✓ Oui" : "✕ NON", tb.balanced ? "ok" : "ko",
-         Object.entries(tb.balanced_by_currency).map(([c, ok]) => `${c} ${ok ? "✓" : "✕"}`).join(" · ")) +
-    tile("Compte d'attente", suspense.length ? suspense.map(([c, v]) => `${fmtAmt(v)} ${c}`).join("<br>") : "0,00",
-         suspense.length ? "ko" : "ok", suspense.length ? "flux inexpliqués à apurer" : "aucun flux inexpliqué");
+    tile("Équilibre partie double", tb.balanced ? "✓ Débits = Crédits" : "✕ NON",
+         tb.balanced ? "ok" : "ko",
+         "par devise : " + Object.entries(tb.balanced_by_currency)
+           .map(([c, ok]) => `${c} ${ok ? "✓" : "✕"}`).join(" · ")) +
+    tile("Compte d'attente 9990",
+         suspense.length ? suspense.map(([c, v]) => `${fmtAmt(v)} ${c}`).join("<br>") : "0,00",
+         suspense.length ? "ko" : "ok",
+         suspense.length
+           ? "⚠ flux inexpliqués À APURER — l'équilibre tient car 9990 les absorbe, mais ces montants restent à justifier"
+           : "aucun flux inexpliqué : rapprochement complet");
 
   const totals = {};
   $("#balance").innerHTML =
@@ -210,6 +232,29 @@ function render(data) {
     Object.entries(totals).map(([c, t]) => `<tr class="total"><td>Total</td><td>${c}</td>
       <td class="num">${fmtAmt(t.debit)}</td><td class="num">${fmtAmt(t.credit)}</td>
       <td class="num">${fmtAmt(t.debit - t.credit)}</td></tr>`).join("");
+
+  if (data.pnl) {
+    const p = data.pnl;
+    $("#pnl").innerHTML =
+      "<tr><th>Poste</th><th class='num'>Montant (EUR)</th></tr>" +
+      [["Chiffre d'affaires (commissions perçues)", p.chiffre_affaires, false],
+       ["(-) Charges d'exploitation", p.charges_exploitation, false],
+       ["Excédent brut d'exploitation (EBE)", p.excedent_brut, true],
+       ["Résultat net", p.resultat_net, true]]
+        .map(([k, v, t]) => `<tr class="${t ? "total" : ""}"><td>${k}</td>
+          <td class="num">${fmtAmt(v)}</td></tr>`).join("");
+    $("#pnl-note").textContent = p.note;
+  }
+  if (data.off_balance_sheet) {
+    const o = data.off_balance_sheet;
+    $("#obs").innerHTML =
+      "<tr><th>Engagement</th><th class='num'>Notionnel (EUR)</th></tr>" +
+      o.lines.map((l) => `<tr><td>${l.engagement}</td>
+        <td class="num">${fmtAmt(l.notionnel_eur)}</td></tr>`).join("") +
+      `<tr class="total"><td>Total notionnel</td>
+        <td class="num">${fmtAmt(o.total_notionnel_eur)}</td></tr>`;
+    $("#obs-note").textContent = o.note;
+  }
 
   renderEntries(data, null);
   document.querySelectorAll("#balance tr[data-account]").forEach((row) => {
