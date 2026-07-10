@@ -58,7 +58,7 @@ relevés bancaires incomplets, références mutilées, un client PEP.
 - **CAO (audit)** — six assertions ISA par produit et par jour, journal
   chaîné SHA-256, tout refus/décision journalisé, re-vérifiable a
   posteriori sans intervention humaine.
-- **CDO** — catalogue de 8 Data Products sous contrat versionné,
+- **CDO** — catalogue de 10 Data Products sous contrat versionné,
   ontologie contraignante, provenance G8 transitive, lineage XAI.
 - **CIO/CTO** — zéro dépendance (stdlib), une seule optionnelle
   (DuckDB) ; pipeline déterministe rejouable ; même code en local et en

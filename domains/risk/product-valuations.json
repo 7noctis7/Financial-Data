@@ -1,0 +1,58 @@
+{
+  "urn": "urn:fcc:risk:valuations",
+  "domain": "risk",
+  "name": "Mark-to-Market Valuations",
+  "version": "1.0.0",
+  "owner": "risk@fcc",
+  "description": "Valorisation mark-to-market quotidienne par instrument : variation de valeur du jour (close vs prev_close du produit Marché) appliquée au notionnel vivant des trades exécutés. Méthode v1 assumée (rendement du jour x notionnel) ; une valorisation full-reval remplacera la fonction sans toucher au contrat.",
+  "output_schema": {
+    "entity": "Valuation",
+    "fields": [
+      {
+        "name": "instrument_id",
+        "type": "string",
+        "ontology_term": "Instrument"
+      },
+      {
+        "name": "position_notional",
+        "type": "money",
+        "ontology_term": "Position"
+      },
+      {
+        "name": "close",
+        "type": "money",
+        "ontology_term": "MarketPrice"
+      },
+      {
+        "name": "daily_return",
+        "type": "number"
+      },
+      {
+        "name": "mtm_pnl",
+        "type": "money"
+      },
+      {
+        "name": "computed_at",
+        "type": "timestamp"
+      }
+    ]
+  },
+  "slo": {
+    "freshness_seconds": 86400,
+    "max_violation_rate": 0.0,
+    "cooldown_seconds": 3600
+  },
+  "access": {
+    "classification": "internal",
+    "roles": [
+      "trader",
+      "risk-analyst",
+      "auditor",
+      "regulatory-officer"
+    ]
+  },
+  "sources": [
+    "urn:fcc:trading:executed-trades",
+    "urn:fcc:market:eod-prices"
+  ]
+}

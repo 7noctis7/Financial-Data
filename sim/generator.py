@@ -92,6 +92,73 @@ class SimulatedTradingSource(DataSource):
                           f"{business_date}T18:00:00Z", records)
 
 
+# Cours de référence par instrument (ordre de grandeur réaliste : prix pied
+# de coupon pour les obligations, cours action, taux/points pour dérivés).
+REFERENCE_PRICES = {
+    "FR0014007L00": 98.42,
+    "DE0001102580": 101.15,
+    "US91282CJK15": 96.88,
+    "FR0000120271": 62.34,
+    "NL0011794037": 741.20,
+    "US0378331005": 227.48,
+    "INT:IRS-EUR-5Y": 100.00,
+    "INT:IRS-USD-10Y": 100.00,
+    "INT:FXF-EURUSD-3M": 1.0872,
+    "INT:FXF-EURGBP-1M": 0.8547,
+}
+
+# Volatilité journalière par classe d'actifs (écart-type du rendement log)
+DAILY_VOL = {"govt_bond": 0.003, "equity": 0.015, "irs": 0.002, "fx_forward": 0.006}
+
+
+def _prev_business_day(business_date):
+    import datetime
+    day = datetime.date.fromisoformat(business_date) - datetime.timedelta(days=1)
+    while day.weekday() >= 5:
+        day -= datetime.timedelta(days=1)
+    return day.isoformat()
+
+
+class SimulatedMarketDataSource(DataSource):
+    """Prix de clôture simulés, déterministes par (seed, instrument, date).
+
+    Chaque clôture est le cours de référence de l'instrument affecté d'un
+    rendement log-normal tiré de la graine `seed:px:instrument:date` — le
+    même jour rejoué donne le même prix, et `prev_close` est recalculé par
+    la même formule sur le jour ouvré précédent : les deux champs sont
+    cohérents entre eux et entre exécutions. En production, un connecteur
+    fournisseur remplace cette classe sans toucher au contrat.
+    """
+
+    origin = SIMULATED
+    product_urn = "urn:fcc:market:eod-prices"
+
+    def __init__(self, seed=42):
+        self.seed = seed
+
+    def _close(self, instrument_id, asset_class, date):
+        rng = random.Random(f"{self.seed}:px:{instrument_id}:{date}")
+        factor = rng.lognormvariate(0, DAILY_VOL[asset_class])
+        ref = REFERENCE_PRICES[instrument_id]
+        return round(ref * factor, 4 if ref < 10 else 2)
+
+    def fetch(self, business_date):
+        prev_day = _prev_business_day(business_date)
+        records = []
+        for instrument_id, asset_class, currency, _median in INSTRUMENTS:
+            records.append({
+                "instrument_id": instrument_id,
+                "close": {"amount": self._close(instrument_id, asset_class, business_date),
+                          "currency": currency},
+                "prev_close": {"amount": self._close(instrument_id, asset_class, prev_day),
+                               "currency": currency},
+                "price_date": f"{business_date}T17:30:00Z",
+                "price_source": "SIMULATED-EOD",
+            })
+        return make_batch(self.product_urn, self.origin,
+                          f"{business_date}T17:35:00Z", records)
+
+
 COUNTERPARTY_NAMES = {
     "R0MUWSFPU8MPRO8K5P83": "BNP Paribas",
     "F3JS33DEI6XQ4ZBPTN86": "Société Générale",

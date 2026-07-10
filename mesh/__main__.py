@@ -15,7 +15,8 @@ from .registry import ContractError, Registry
 
 
 def _simulate(argv):
-    from sim.generator import SimulatedTradingSource, simulate_bank_statements
+    from sim.generator import (SimulatedMarketDataSource, SimulatedTradingSource,
+                               simulate_bank_statements)
 
     from .pipeline import run_business_day
 
@@ -30,6 +31,7 @@ def _simulate(argv):
         business_date,
         trading_source=SimulatedTradingSource(seed=seed, n_trades=n_trades),
         statements_source=lambda trades: simulate_bank_statements(trades, seed=seed),
+        market_source=SimulatedMarketDataSource(seed=seed),
     )
     print(json.dumps(summary, indent=2, ensure_ascii=False))
     return 0
@@ -38,7 +40,8 @@ def _simulate(argv):
 def _backfill(argv):
     import datetime
 
-    from sim.generator import SimulatedTradingSource, simulate_bank_statements
+    from sim.generator import (SimulatedMarketDataSource, SimulatedTradingSource,
+                               simulate_bank_statements)
 
     from .pipeline import run_business_day
 
@@ -57,6 +60,7 @@ def _backfill(argv):
                 day.isoformat(),
                 trading_source=SimulatedTradingSource(seed=seed, n_trades=n_trades),
                 statements_source=lambda t: simulate_bank_statements(t, seed=seed),
+                market_source=SimulatedMarketDataSource(seed=seed),
             )
             count += 1
         day += datetime.timedelta(days=1)

@@ -7,10 +7,12 @@ statique — c'est ce qui garantit que les deux vues sont identiques.
 
 from collections import Counter
 
-from mesh.derivations import FX_TO_EUR, derive_cash_positions, derive_exposures
+from mesh.derivations import (FX_TO_EUR, derive_cash_positions, derive_exposures,
+                              derive_valuations)
 from mesh.pipeline import run_business_day
 from mesh.registry import Registry
-from sim.generator import INSTRUMENTS, SimulatedTradingSource, simulate_bank_statements
+from sim.generator import (INSTRUMENTS, SimulatedMarketDataSource,
+                           SimulatedTradingSource, simulate_bank_statements)
 
 CLASS_LABELS = {
     "govt_bond": "Obligations souveraines",
@@ -39,8 +41,12 @@ def build_payload(business_date, seed=42, n_trades=250):
     statements = simulate_bank_statements(trades, seed=seed)
     cash = derive_cash_positions(trades, statements, business_date)
     exposures = derive_exposures(trades, business_date)
+    market = SimulatedMarketDataSource(seed=seed)
+    prices = market.fetch(business_date)
+    valuations = derive_valuations(trades, prices, business_date)
     summary = run_business_day(
-        business_date, source, lambda t: simulate_bank_statements(t, seed=seed))
+        business_date, source, lambda t: simulate_bank_statements(t, seed=seed),
+        market_source=market)
 
     by_hour = Counter(int(t["executed_at"][11:13]) for t in trades["records"])
     by_class = Counter()
@@ -88,6 +94,20 @@ def build_payload(business_date, seed=42, n_trades=250):
         "instrument_classes": {i: CLASS_LABELS[c] for i, c in CLASS_BY_INSTRUMENT.items()},
         "counterparty_names": COUNTERPARTY_NAMES,
         "fx_to_eur": FX_TO_EUR,
+        "valuations": [
+            {
+                "instrument_id": r["instrument_id"],
+                "asset_class": CLASS_LABELS[CLASS_BY_INSTRUMENT[r["instrument_id"]]],
+                "position_eur": r["position_notional"]["amount"],
+                "close": r["close"],
+                "daily_return": r["daily_return"],
+                "mtm_eur": r["mtm_pnl"]["amount"],
+            }
+            for r in sorted(valuations["records"],
+                            key=lambda r: -abs(r["mtm_pnl"]["amount"]))
+        ],
+        "mtm_total_eur": round(sum(r["mtm_pnl"]["amount"]
+                                   for r in valuations["records"]), 2),
         "audit_anchor": summary.get("audit_head_hash"),
         "catalog": Registry().catalog(),
         "kris": _kris(summary, cash, exposures, trades, statements, business_date),

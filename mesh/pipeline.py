@@ -12,7 +12,7 @@ from pathlib import Path
 from .accounting import derive_ledger
 from .audit import CERTIFIED, QUALIFIED, AuditLog, make_assertion
 from .circuit_breaker import CircuitBreaker
-from .derivations import derive_cash_positions, derive_exposures
+from .derivations import derive_cash_positions, derive_exposures, derive_valuations
 from .fees import derive_fees
 from .quality import validate_batch
 from .regulatory import OriginError, generate_filing
@@ -37,8 +37,13 @@ def _process_product(registry, log, batch):
 
 
 def run_business_day(business_date, trading_source, statements_source,
-                     out_dir=None, auditor="continuous-audit@fcc"):
-    """Exécute la journée et retourne le résumé (également écrit sur disque)."""
+                     out_dir=None, auditor="continuous-audit@fcc",
+                     market_source=None):
+    """Exécute la journée et retourne le résumé (également écrit sur disque).
+
+    `market_source` (optionnel, même protocole que la source Trading) fournit
+    les clôtures du jour ; s'il est présent, le produit Valuations (MtM) est
+    dérivé et certifié comme les autres."""
     registry = Registry()
     log = AuditLog()
     out_dir = Path(out_dir) if out_dir else DATA_DIR / business_date
@@ -51,8 +56,15 @@ def run_business_day(business_date, trading_source, statements_source,
     fees = derive_fees(trades, business_date)
     ledger = derive_ledger(trades, statements, business_date, fees_batch=fees)
 
+    batches = [trades, cash, exposures, fees, ledger]
+    prices = valuations = None
+    if market_source is not None:
+        prices = market_source.fetch(business_date)
+        valuations = derive_valuations(trades, prices, business_date)
+        batches += [prices, valuations]
+
     states = {b["product_urn"]: _process_product(registry, log, b)
-              for b in (trades, cash, exposures, fees, ledger)}
+              for b in batches}
 
     assertions = {}
     for urn, state in states.items():
@@ -86,9 +98,12 @@ def run_business_day(business_date, trading_source, statements_source,
             filings.append(generate_filing(rule_ref, assertion,
                                            f"{business_date}T20:00:00Z", dry_run=True))
 
-    for name, batch in (("trades", trades), ("bank-statements", statements),
-                        ("cash-positions", cash), ("exposures", exposures),
-                        ("ledger", ledger), ("fees", fees)):
+    outputs = [("trades", trades), ("bank-statements", statements),
+               ("cash-positions", cash), ("exposures", exposures),
+               ("ledger", ledger), ("fees", fees)]
+    if prices is not None:
+        outputs += [("prices", prices), ("valuations", valuations)]
+    for name, batch in outputs:
         (out_dir / f"{name}.json").write_text(
             json.dumps(batch, indent=2, ensure_ascii=False), encoding="utf-8")
     (out_dir / "audit-journal.json").write_text(

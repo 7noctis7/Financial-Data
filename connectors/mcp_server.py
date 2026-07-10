@@ -43,11 +43,13 @@ def _tool_query(args):
 
 def _tool_simulate(args):
     from mesh.pipeline import run_business_day
-    from sim.generator import SimulatedTradingSource, simulate_bank_statements
+    from sim.generator import (SimulatedMarketDataSource, SimulatedTradingSource,
+                               simulate_bank_statements)
     seed = int(args.get("seed", 42))
     return run_business_day(
         args["date"], SimulatedTradingSource(seed=seed, n_trades=int(args.get("trades", 250))),
-        lambda t: simulate_bank_statements(t, seed=seed))
+        lambda t: simulate_bank_statements(t, seed=seed),
+        market_source=SimulatedMarketDataSource(seed=seed))
 
 
 def _tool_reconcile(args):

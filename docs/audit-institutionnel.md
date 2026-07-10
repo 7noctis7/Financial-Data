@@ -35,8 +35,9 @@ réelles, taxonomie DPM officielle, et durcissement opérationnel
 ## CRO — risques
 - **Acquis** : expositions/limites avec jauges, C 07.00 RWA, disjoncteurs
   de qualité, criblage AML explicable avec 4 yeux.
-- **Écarts / actions 0 €** : **valorisation MtM** des dérivés (produit de
-  données Marché simulé — conçu, non implémenté : la plus grosse limite
+- **Écarts / actions 0 €** : ~~**valorisation MtM** des dérivés~~ — FAIT :
+  produit `market:eod-prices` + `risk:valuations` (méthode v1 : rendement du
+  jour × notionnel vif, contrat versionné, certifié par le pipeline). Restait la plus grosse limite
   déclarée) ; stress-tests simples (choc FX ±10 % sur l'entrepôt SQL) ;
   VaR historique quand l'historique multi-jours sera systématique.
 - 💰 : données de marché réelles (Bloomberg/Refinitiv).
@@ -52,7 +53,7 @@ réelles, taxonomie DPM officielle, et durcissement opérationnel
 - 💰 : horodatage qualifié eIDAS/RFC 3161 (autorité tierce).
 
 ## CDO — données
-- **Acquis** : 8 Data Products sous contrat versionné, ontologie
+- **Acquis** : 10 Data Products sous contrat versionné (dont Marché EOD et valorisation MtM), ontologie
   contraignante, lineage XAI, entrepôt SQL, totaux de contrôle.
 - **Écarts / actions 0 €** : SLO mesurés en continu (les contrats les
   déclarent, `/api/health` doit les évaluer par produit) ; dictionnaire de
@@ -86,7 +87,7 @@ réelles, taxonomie DPM officielle, et durcissement opérationnel
 ## Priorisation proposée (tout à 0 €)
 
 1. Persistance du journal d'audit serveur (risque d'intégrité) — CIO.
-2. Produit Marché simulé + MtM (lève la limite n°1) — CRO.
+2. ~~Produit Marché simulé + MtM~~ — FAIT (contrats `market:eod-prices` + `risk:valuations`, panneau MtM au dashboard) — CRO.
 3. Page Journal d'audit + dictionnaire de données auto-généré — CAO/CDO.
 4. Clôture mensuelle + comparatifs N/N-1 — CFO.
 5. README/landing bilingue + page méthode — CMO.

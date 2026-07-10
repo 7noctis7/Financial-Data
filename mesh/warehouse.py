@@ -34,6 +34,8 @@ TABLES = {
     "exposures": "exposures.json",
     "ledger": "ledger.json",
     "fees": "fees.json",
+    "prices": "prices.json",
+    "valuations": "valuations.json",
     "audit_journal": "audit-journal.json",
 }
 

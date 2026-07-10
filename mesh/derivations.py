@@ -75,6 +75,48 @@ def derive_cash_positions(trades_batch, statements_batch, business_date):
     )
 
 
+def derive_valuations(trades_batch, prices_batch, business_date):
+    """Mark-to-market v1 : variation de valeur du jour par instrument.
+
+    Méthode assumée et documentée dans le contrat : rendement du jour
+    (close / prev_close − 1) appliqué au notionnel vivant (trades
+    `executed`) de l'instrument, converti en EUR. Une valorisation full-
+    reval (courbes, sensibilités) remplacera cette fonction sans toucher
+    au contrat `urn:fcc:risk:valuations`.
+    """
+    prices = {p["instrument_id"]: p for p in prices_batch["records"]}
+    live_notional = {}
+    for trade in trades_batch["records"]:
+        if trade["status"] != "executed":
+            continue
+        notional = trade["notional"]
+        eur = notional["amount"] * FX_TO_EUR[notional["currency"]]
+        live_notional[trade["instrument_id"]] = (
+            live_notional.get(trade["instrument_id"], 0.0) + eur)
+
+    records = []
+    for instrument_id, position_eur in sorted(live_notional.items()):
+        price = prices.get(instrument_id)
+        if price is None:  # pas de cours → pas de valorisation, jamais d'invention
+            continue
+        daily_return = price["close"]["amount"] / price["prev_close"]["amount"] - 1.0
+        records.append({
+            "instrument_id": instrument_id,
+            "position_notional": {"amount": round(position_eur, 2), "currency": "EUR"},
+            "close": price["close"],
+            "daily_return": round(daily_return, 6),
+            "mtm_pnl": {"amount": round(position_eur * daily_return, 2),
+                        "currency": "EUR"},
+            "computed_at": f"{business_date}T18:45:00Z",
+        })
+    return make_batch(
+        "urn:fcc:risk:valuations",
+        combine_origin(trades_batch, prices_batch),
+        f"{business_date}T18:45:00Z",
+        records,
+    )
+
+
 def derive_exposures(trades_batch, business_date):
     """Exposition brute par contrepartie, valorisée en EUR.
 

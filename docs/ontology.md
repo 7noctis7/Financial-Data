@@ -24,6 +24,8 @@ rend l'ontologie contraignante et non décorative.
 | `AmlAlert` | Client Lifecycle | Signal de vigilance LCB-FT sur l'activité d'un `Client`, avec score explicable et statut de traitement. Toujours dérivée, jamais saisie ; la décision (escalade / classement) est humaine et journalisée. |
 | `JournalEntry` | Comptabilité | Ligne d'écriture en **partie double** (compte, sens débit/crédit, montant, référence), toujours dérivée d'un `Settlement` ou d'un `Trade` — jamais saisie. L'équilibre débits = crédits par devise est un invariant contrôlé quotidiennement ; tout flux inexpliqué passe par le compte d'attente. |
 | `Fee` | Client Lifecycle | Commission ou frais facturé à un `Client` (courtage, tenue de compte, droits de garde), toujours dérivé d'un `Trade` ou d'un service tarifé — barème versionné, jamais saisi. |
+| `MarketPrice` | Marché | Prix de clôture (`close`) d'un `Instrument` à une date donnée, accompagné du cours de clôture précédent (`prev_close`) et de la source du cours. Un prix sans source ni horodatage n'existe pas pour le mesh. |
+| `Valuation` | Risque | Valorisation **mark-to-market** d'une `Position` : variation de valeur du jour, dérivée d'un `MarketPrice` (close vs prev_close) appliquée au notionnel vivant, avec méthode de calcul référencée. Toujours dérivée, jamais saisie. |
 | `RegulatoryRule` | Regulatory | Règle de conformité versionnée, exprimée en code, référençant la norme source (texte + article). |
 | `Filing` | Regulatory | Rapport réglementaire généré, référençant les `AuditAssertion` qui certifient ses données sources. |
 

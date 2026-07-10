@@ -30,7 +30,7 @@ class TestMcpHandler(unittest.TestCase):
             role="viewer")
         self.assertFalse(response["result"]["isError"])
         catalog = json.loads(response["result"]["content"][0]["text"])
-        self.assertEqual(len(catalog), 8)
+        self.assertEqual(len(catalog), 10)
 
     def test_contextual_security_blocks_viewer(self):
         response = mcp_server.handle(

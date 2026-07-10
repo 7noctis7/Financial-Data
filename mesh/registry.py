@@ -75,7 +75,7 @@ class Registry:
         self._check_lineage()
 
     def _load(self, domains_dir):
-        for path in sorted(domains_dir.glob("*/product.json")):
+        for path in sorted(domains_dir.glob("*/product*.json")):
             contract = json.loads(path.read_text(encoding="utf-8"))
             errors = validate_contract(contract, self.ontology_terms, self.contract_schema)
             if errors:

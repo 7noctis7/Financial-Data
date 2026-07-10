@@ -207,6 +207,13 @@
       <div id="chart-class"></div>
     </div>
     <div class="card wide">
+      <h2>Valorisation mark-to-market</h2>
+      <p class="hint">Variation de valeur du jour par instrument (close vs veille, produit
+      <code>risk:valuations</code> dérivé de <code>market:eod-prices</code>) —
+      méthode v1 : rendement du jour × notionnel vif</p>
+      <table id="mtm"></table>
+    </div>
+    <div class="card wide">
       <h2>Surveillance SCI — indicateurs de risque (KRI)</h2>
       <p class="hint">Seuils : docs/audit-suisse.md §2 — vert = nominal, orange = vigilance, rouge = action requise</p>
       <div class="kpis" id="kris" style="margin-bottom:0"></div>
@@ -557,6 +564,22 @@ function render(data) {
   $("#date-badge").textContent = "Journée du " + fmtDate(data.business_date);
 
   renderKpis(data, data.trades);
+
+  if (data.valuations) {
+    const pct = (r) => (r * 100).toFixed(2).replace(".", ",") + " %";
+    const signed = (v) => `<span style="color:${v < 0 ? "var(--critical)" : "var(--good-text)"}">${
+      v >= 0 ? "+" : ""}${fmtEur(v)}</span>`;
+    $("#mtm").innerHTML =
+      "<tr><th>Instrument</th><th>Classe</th><th class='num'>Notionnel vif</th><th class='num'>Clôture</th><th class='num'>Rendement du jour</th><th class='num'>MtM du jour</th></tr>" +
+      data.valuations.map((v) => `<tr>
+        <td><code>${v.instrument_id}</code></td><td>${v.asset_class}</td>
+        <td class="num">${fmtEur(v.position_eur)}</td>
+        <td class="num">${v.close.amount.toLocaleString("fr-FR")} ${v.close.currency}</td>
+        <td class="num">${pct(v.daily_return)}</td>
+        <td class="num">${signed(v.mtm_eur)}</td></tr>`).join("") +
+      `<tr><td colspan="5" style="font-weight:650">Total portefeuille</td>
+        <td class="num" style="font-weight:650">${signed(data.mtm_total_eur)}</td></tr>`;
+  }
 
   if (data.kris) {
     const k2 = data.kris;

@@ -1,0 +1,49 @@
+{
+  "urn": "urn:fcc:market:eod-prices",
+  "domain": "market",
+  "name": "Market EOD Prices",
+  "version": "1.0.0",
+  "owner": "market-data@fcc",
+  "description": "Prix de clôture (end-of-day) par instrument, avec le cours de la veille et la source du cours. Aujourd'hui simulé (marche déterministe autour d'un cours de référence par instrument) ; en production, un connecteur fournisseur (Bloomberg/Refinitiv/SIX) le remplace sans toucher au contrat.",
+  "output_schema": {
+    "entity": "MarketPrice",
+    "fields": [
+      {
+        "name": "instrument_id",
+        "type": "string",
+        "ontology_term": "Instrument"
+      },
+      {
+        "name": "close",
+        "type": "money"
+      },
+      {
+        "name": "prev_close",
+        "type": "money"
+      },
+      {
+        "name": "price_date",
+        "type": "timestamp"
+      },
+      {
+        "name": "price_source",
+        "type": "string"
+      }
+    ]
+  },
+  "slo": {
+    "freshness_seconds": 86400,
+    "max_violation_rate": 0.0,
+    "cooldown_seconds": 3600
+  },
+  "access": {
+    "classification": "internal",
+    "roles": [
+      "trader",
+      "risk-analyst",
+      "treasury-ops",
+      "auditor"
+    ]
+  },
+  "sources": []
+}
