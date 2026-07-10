@@ -119,6 +119,23 @@ def _prev_business_day(business_date):
     return day.isoformat()
 
 
+def same_day_previous_year(business_date):
+    """Même date de l'exercice précédent (N-1), ajustée au jour ouvré.
+
+    Convention comptable : « N-1 » compare au même jour de l'année
+    précédente (01.01.N ↔ 01.01.N-1), jamais à la veille. 29 février →
+    28 février ; week-end → jour ouvré précédent."""
+    import datetime
+    day = datetime.date.fromisoformat(business_date)
+    try:
+        prev = day.replace(year=day.year - 1)
+    except ValueError:  # 29 février d'une année bissextile
+        prev = day.replace(year=day.year - 1, day=28)
+    while prev.weekday() >= 5:
+        prev -= datetime.timedelta(days=1)
+    return prev.isoformat()
+
+
 class SimulatedMarketDataSource(DataSource):
     """Prix de clôture simulés, déterministes par (seed, instrument, date).
 

@@ -35,6 +35,71 @@ def _eur(money):
     return money["amount"] * FX_TO_EUR[money["currency"]]
 
 
+def _business_days(date_from, date_to):
+    import datetime
+    day = datetime.date.fromisoformat(date_from)
+    end = datetime.date.fromisoformat(date_to)
+    days = []
+    while day <= end:
+        if day.weekday() < 5:
+            days.append(day.isoformat())
+        day += datetime.timedelta(days=1)
+    return days
+
+
+def _period_flux(date_from, date_to, seed, n_trades):
+    """Flux agrégés sur une période [du..au] : trades, notionnel, commissions.
+
+    Même dérivation que le jour unique, sommée sur les jours ouvrés —
+    recalculée, jamais estimée. Le simulateur est déterministe par
+    (seed, date) : chaque rejeu de la même période donne le même total."""
+    from mesh.fees import derive_fees
+    trades_count, notional_eur, fees_eur = 0, 0.0, 0.0
+    for day in _business_days(date_from, date_to):
+        batch = SimulatedTradingSource(seed=seed, n_trades=n_trades).fetch(day)
+        for trade in batch["records"]:
+            if trade["status"] == "cancelled":
+                continue
+            trades_count += 1
+            notional_eur += _eur(trade["notional"])
+        fees_eur += sum(_eur(f["amount"])
+                        for f in derive_fees(batch, day)["records"])
+    return {"trades": trades_count, "notional_eur": round(notional_eur, 2),
+            "fees_eur": round(fees_eur, 2)}
+
+
+def _shift_year(date_iso):
+    import datetime
+    day = datetime.date.fromisoformat(date_iso)
+    try:
+        return day.replace(year=day.year - 1).isoformat()
+    except ValueError:  # 29 février
+        return day.replace(year=day.year - 1, day=28).isoformat()
+
+
+def build_comparison(date_from, date_to, seed, n_trades):
+    """Comparatif N / N-1 : MÊME période décalée d'un exercice
+    (01.01.N ↔ 01.01.N-1) — convention comptable, jamais la veille."""
+    current = _period_flux(date_from, date_to, seed, n_trades)
+    prev_from, prev_to = _shift_year(date_from), _shift_year(date_to)
+    previous = _period_flux(prev_from, prev_to, seed, n_trades)
+
+    def _var(key):
+        delta = round(current[key] - previous[key], 2)
+        pct = round(delta / previous[key], 4) if previous[key] else None
+        return {"delta": delta, "pct": pct}
+
+    return {
+        "period": {"from": date_from, "to": date_to},
+        "prev_period": {"from": prev_from, "to": prev_to},
+        "current": current,
+        "previous": previous,
+        "variation": {k: _var(k) for k in ("trades", "notional_eur", "fees_eur")},
+        "method": ("N vs N-1 : même période décalée d'un exercice, même dérivation, "
+                   "recalculée sur les jours ouvrés (jamais estimée)"),
+    }
+
+
 def _market_source(seed):
     """FCC_MARKET=yahoo → cours réels (gratuits) ; défaut → simulés.
 
@@ -48,7 +113,12 @@ def _market_source(seed):
     return SimulatedMarketDataSource(seed=seed), None
 
 
-def build_payload(business_date, seed=42, n_trades=250):
+def build_payload(business_date, seed=42, n_trades=250, date_from=None):
+    """Payload du dashboard. `business_date` est la date d'ARRÊTÉ (photo :
+    positions, expositions, valorisations). `date_from` optionnelle ouvre
+    une PÉRIODE [du..au] : les flux (trades, notionnel, commissions) sont
+    agrégés sur les jours ouvrés et comparés à la même période N-1."""
+    date_from = date_from or business_date
     source = SimulatedTradingSource(seed=seed, n_trades=n_trades)
     trades = source.fetch(business_date)
     statements = demo_statements(trades, seed=seed)
@@ -102,6 +172,10 @@ def build_payload(business_date, seed=42, n_trades=250):
         "origin": trades["origin"],
         "params": {"seed": seed, "n_trades": n_trades},
         "concentration": concentration,
+        # Période + comparatif N/N-1 (même période, exercice précédent) —
+        # les photos (expositions, cash, valorisations) restent arrêtées
+        # au dernier jour ; les flux sont agrégés sur la période.
+        "comparison": build_comparison(date_from, business_date, seed, n_trades),
         "kpis": {
             "trades": len(trades["records"]),
             "notional_eur": round(total_notional, 2),
@@ -154,21 +228,7 @@ def build_payload(business_date, seed=42, n_trades=250):
         "audit_anchor": summary.get("audit_head_hash"),
         "catalog": Registry().catalog(),
         "kris": _kris(summary, cash, exposures, trades, statements, business_date),
-        "trend": _trend(business_date, seed, n_trades),
     }
-
-
-def _trend(business_date, seed, n_trades):
-    """Comparaison avec le jour ouvré précédent (même simulateur)."""
-    import datetime
-    day = datetime.date.fromisoformat(business_date) - datetime.timedelta(days=1)
-    while day.weekday() >= 5:
-        day -= datetime.timedelta(days=1)
-    prev = SimulatedTradingSource(seed=seed, n_trades=n_trades).fetch(day.isoformat())
-    notional = sum(t["notional"]["amount"] * FX_TO_EUR[t["notional"]["currency"]]
-                   for t in prev["records"] if t["status"] != "cancelled")
-    return {"date": day.isoformat(), "trades": len(prev["records"]),
-            "notional_eur": round(notional, 2)}
 
 
 def _kris(summary, cash, exposures, trades, statements, business_date):

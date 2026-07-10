@@ -69,13 +69,14 @@ _SUMMARY_LOCK = threading.Lock()
 _SUMMARY_CACHE_MAX = 32
 
 
-def _summary_bytes(date, seed, n_trades):
-    key = (date, seed, n_trades)
+def _summary_bytes(date, seed, n_trades, date_from=None):
+    key = (date, seed, n_trades, date_from)
     with _SUMMARY_LOCK:
         cached = _SUMMARY_CACHE.get(key)
         if cached is not None:
             return cached
-    body = json.dumps(build_payload(date, seed, n_trades)).encode("utf-8")
+    body = json.dumps(build_payload(date, seed, n_trades,
+                                    date_from=date_from)).encode("utf-8")
     with _SUMMARY_LOCK:
         if len(_SUMMARY_CACHE) >= _SUMMARY_CACHE_MAX:
             _SUMMARY_CACHE.pop(next(iter(_SUMMARY_CACHE)))  # évince la plus ancienne
@@ -429,13 +430,26 @@ class Handler(SimpleHTTPRequestHandler):
         if not DATE_RE.match(date):
             self.send_error(400, "date attendue au format AAAA-MM-JJ")
             return
+        # Période optionnelle [du..au] : `from` <= date d'arrêté, bornée à
+        # 366 jours (le comparatif N-1 double le calcul — pas de DoS).
+        date_from = query.get("from", [None])[0]
+        if date_from is not None:
+            if not DATE_RE.match(date_from) or date_from > date:
+                self.send_error(400, "période invalide : from <= date, AAAA-MM-JJ")
+                return
+            import datetime as _dt
+            span = (_dt.date.fromisoformat(date)
+                    - _dt.date.fromisoformat(date_from)).days
+            if span > 366:
+                self.send_error(400, "période trop longue (maximum 366 jours)")
+                return
         try:
             seed = int(query.get("seed", ["42"])[0])
             n_trades = min(max(int(query.get("trades", ["250"])[0]), 1), 20_000)
         except ValueError:
             self.send_error(400, "seed et trades doivent être des entiers")
             return
-        body = _summary_bytes(date, seed, n_trades)
+        body = _summary_bytes(date, seed, n_trades, date_from=date_from)
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))

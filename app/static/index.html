@@ -177,10 +177,11 @@
   <p class="sub">Data Mesh bancaire — trading, trésorerie, risque, audit continu, gouvernance fédérée.</p>
 
   <form id="controls" hidden>
-    <label>Date <input type="date" name="date"></label>
+    <label>Du <input type="date" name="from" title="Début de période (optionnel) — vide = journée unique"></label>
+    <label>Au (arrêté) <input type="date" name="date" title="Date d'arrêté : positions, expositions et valorisations sont figées à cette date"></label>
     <label>Seed <input type="number" name="seed" value="42"></label>
     <label>Trades <input type="number" name="trades" value="250" min="1" max="20000"></label>
-    <button type="submit">Rejouer la journée</button>
+    <button type="submit">Rejouer</button>
   </form>
 
   <div class="card wide" style="margin-bottom:16px">
@@ -514,15 +515,34 @@ function renderKpis(data, trades) {
   const live = trades.filter((t2) => t2.status !== "cancelled");
   const k = data.kpis;
   const scoped = trades.length !== data.trades.length;
+  // Comparatif N / N-1 : même période (ou même date) de l'exercice précédent
+  // — convention comptable 01.01.N ↔ 01.01.N-1, jamais la veille.
+  const cmp = data.comparison;
+  const isPeriod = cmp && cmp.period.from !== cmp.period.to;
+  const pct = (v) => v && v.pct !== null && v.pct !== undefined
+    ? `${v.pct >= 0 ? "+" : ""}${(v.pct * 100).toFixed(1)} % vs N-1` : "N-1 : n/d";
+  const periodLabel = isPeriod
+    ? `du ${fmtDate(cmp.period.from)} au ${fmtDate(cmp.period.to)}` : "";
   $("#kpis").innerHTML =
-    tile(scoped ? "Trades (périmètre filtré)" : "Trades du jour", fmtInt(trades.length),
-         scoped ? `sur ${fmtInt(data.trades.length)}` : `seed ${data.params.seed}`) +
-    tile("Notionnel" + (scoped ? " (périmètre)" : " traité"),
-         fmtEur(live.reduce((s, t2) => s + eur(t2.notional), 0)),
-         (!scoped && data.trend)
-           ? `${(() => { const d = (live.reduce((s, t2) => s + eur(t2.notional), 0) / data.trend.notional_eur - 1) * 100; return (d >= 0 ? "+" : "") + d.toFixed(1); })()} % vs ${fmtDate(data.trend.date)}`
-           : "hors annulations") +
-    tile("Exposition totale", fmtEur(k.exposure_eur), "notionnel vif, EUR") +
+    tile(scoped ? "Trades (périmètre filtré)"
+                : (isPeriod ? "Trades (période)" : "Trades du jour"),
+         fmtInt(scoped ? trades.length : (isPeriod ? cmp.current.trades : trades.length)),
+         scoped ? `sur ${fmtInt(data.trades.length)}`
+                : (isPeriod ? periodLabel
+                            : `${pct(cmp && cmp.variation.trades)} (${fmtDate(cmp.prev_period.to)})`)) +
+    tile("Notionnel" + (scoped ? " (périmètre)" : (isPeriod ? " (période)" : " traité")),
+         fmtEur(scoped ? live.reduce((s, t2) => s + eur(t2.notional), 0)
+                       : (isPeriod ? cmp.current.notional_eur
+                                   : live.reduce((s, t2) => s + eur(t2.notional), 0))),
+         (!scoped && cmp) ? `${pct(cmp.variation.notional_eur)} (même ${isPeriod ? "période" : "date"} exercice préc.)`
+                          : "hors annulations") +
+    (!scoped && cmp
+      ? tile("CA commissions" + (isPeriod ? " (période)" : ""),
+             fmtEur(cmp.current.fees_eur),
+             `${pct(cmp.variation.fees_eur)} — N-1 : ${fmtEur(cmp.previous.fees_eur)}`)
+      : "") +
+    tile("Exposition totale", fmtEur(k.exposure_eur),
+         `notionnel vif, EUR — arrêté au ${fmtDate(data.business_date)}`) +
     tile("Comptes réconciliés", `${k.reconciled_accounts}/${k.accounts}`,
       k.reconciled_accounts === k.accounts ? "trades ↔ relevés : complet" : "écarts en suspens") +
     tile("Chaîne d'audit", k.audit_chain_intact ? "Intègre" : "CORROMPUE", "journal chaîné SHA-256");
@@ -702,7 +722,14 @@ if (LIVE) {
   form.date.value = new Date().toISOString().slice(0, 10);
   form.addEventListener("submit", (e) => {
     e.preventDefault();
-    load({ date: form.date.value, seed: form.seed.value, trades: form.trades.value });
+    const params = { date: form.date.value, seed: form.seed.value, trades: form.trades.value };
+    if (form.from.value) {
+      if (form.from.value > form.date.value) {
+        window.alert("Période invalide : « Du » doit précéder « Au (arrêté) »."); return;
+      }
+      params.from = form.from.value;  // période [du..au] — flux agrégés, comparés à N-1
+    }
+    load(params);
   });
   load({});
 } else {
