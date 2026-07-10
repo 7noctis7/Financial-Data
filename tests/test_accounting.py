@@ -85,3 +85,26 @@ class TestPnlAndOffBalance(unittest.TestCase):
                                round(sum(l["notionnel_eur"] for l in obs["lines"]), 2), places=2)
         # aucun titre au comptant ni trade annulé dans le hors-bilan
         self.assertGreater(obs["total_notionnel_eur"], 0)
+
+
+class TestSuspenseWorklist(unittest.TestCase):
+    def _ledger(self, drop_rate, mutate_rate):
+        trades = SimulatedTradingSource(seed=42, n_trades=2000).fetch(DATE)
+        statements = simulate_bank_statements(trades, seed=42,
+                                              drop_rate=drop_rate, mutate_rate=mutate_rate)
+        from mesh.accounting import derive_ledger
+        return derive_ledger(trades, statements, DATE)
+
+    def test_worklist_lists_each_9990_flow_with_origin_reference(self):
+        from mesh.accounting import suspense_worklist
+        wl = suspense_worklist(self._ledger(0.03, 0.03), as_of=DATE)
+        self.assertTrue(wl)  # des flux inexpliqués existent avec ces taux
+        for r in wl:
+            self.assertTrue(r["reference"])          # référence du flux d'origine
+            self.assertIn(r["side"], ("debit", "credit"))
+            self.assertNotEqual(r["contra_account"], "9990")  # la contrepartie, pas 9990
+            self.assertEqual(r["age_days"], 0)       # écriture du jour d'arrêté
+
+    def test_clean_day_has_empty_worklist(self):
+        from mesh.accounting import suspense_worklist
+        self.assertEqual(suspense_worklist(self._ledger(0.0, 0.0), as_of=DATE), [])

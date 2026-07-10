@@ -154,6 +154,22 @@
       <p class="note" id="obs-note"></p>
     </div>
   </div>
+  <div class="cols">
+    <div class="card">
+      <h2>Worklist d'apurement — compte d'attente 9990</h2>
+      <p class="hint">Chaque flux inexpliqué, sa <b>référence d'origine</b>, sa contrepartie
+        comptable et son ancienneté. L'apurement est une décision humaine tracée.</p>
+      <table id="worklist"></table>
+      <p class="note" id="worklist-note"></p>
+    </div>
+    <div class="card">
+      <h2>Clôture mensuelle — M vs M-1</h2>
+      <p class="hint">Mois en cours (du 1<sup>er</sup> au jour d'arrêté) vs même période du mois
+        précédent — <b>recalculé</b> sur les jours ouvrés, jamais estimé.</p>
+      <table id="monthly"></table>
+      <p class="note" id="monthly-note"></p>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -255,6 +271,41 @@ function render(data) {
       `<tr class="total"><td>Total notionnel</td>
         <td class="num">${fmtAmt(o.total_notionnel_eur)}</td></tr>`;
     $("#obs-note").textContent = o.note;
+  }
+
+  if (data.suspense_worklist) {
+    const wl = data.suspense_worklist;
+    const fmtMoney = (m) => `${fmtAmt(m.amount)} ${m.currency}`;
+    $("#worklist").innerHTML = wl.length
+      ? "<tr><th>Référence d'origine</th><th>Sens</th><th class='num'>Montant</th><th>Contrepartie</th><th class='num'>Ancienneté</th></tr>"
+        + wl.map((r) => `<tr>
+            <td><code>${r.reference}</code></td>
+            <td><span class="chip ${r.side}">${r.side === "debit" ? "Débit" : "Crédit"}</span></td>
+            <td class="num">${fmtMoney(r.amount)}</td>
+            <td><code>${r.contra_account}</code> ${r.contra_label}</td>
+            <td class="num">${r.age_days === 0 ? "aujourd'hui" : r.age_days + " j"}</td></tr>`).join("")
+      : '<tr><td style="color:var(--good)">✓ Aucun flux inexpliqué : rapprochement complet à cette date.</td></tr>';
+    $("#worklist-note").textContent = wl.length
+      ? `${wl.length} flux à apurer. L'ancienneté court depuis l'écriture ; le report multi-jours nécessite le journal persistant (clôture mensuelle).`
+      : "";
+  }
+
+  if (data.monthly_close) {
+    const m = data.monthly_close;
+    const pct = (v) => v.pct === null || v.pct === undefined ? "n/d"
+      : `${v.pct >= 0 ? "+" : ""}${(v.pct * 100).toFixed(1)} %`;
+    const line = (label, cur, prev, v, money) => `<tr>
+      <td>${label}</td>
+      <td class="num">${money ? fmtAmt(cur) : cur.toLocaleString("fr-FR")}</td>
+      <td class="num">${money ? fmtAmt(prev) : prev.toLocaleString("fr-FR")}</td>
+      <td class="num" style="color:${v.delta >= 0 ? "var(--good)" : "var(--critical)"}">${pct(v)}</td></tr>`;
+    $("#monthly").innerHTML =
+      "<tr><th>Poste</th><th class='num'>Mois en cours</th><th class='num'>Mois préc.</th><th class='num'>Var.</th></tr>"
+      + line("Trades", m.current.trades, m.previous.trades, m.variation.trades, false)
+      + line("Notionnel (EUR)", m.current.notional_eur, m.previous.notional_eur, m.variation.notional_eur, true)
+      + line("Commissions (EUR)", m.current.fees_eur, m.previous.fees_eur, m.variation.fees_eur, true);
+    $("#monthly-note").textContent =
+      `${fmtDate(m.period.from)}–${fmtDate(m.period.to)} vs ${fmtDate(m.prev_period.from)}–${fmtDate(m.prev_period.to)}.`;
   }
 
   renderEntries(data, null);

@@ -136,6 +136,43 @@ def trial_balance(ledger_batch):
     }
 
 
+def suspense_worklist(ledger_batch, as_of=None):
+    """Worklist d'apurement du compte d'attente 9990 : chaque flux inexpliqué
+    avec sa référence d'origine, sa contrepartie comptable et son ancienneté.
+
+    Un flux passe en 9990 quand il ne s'apparie pas (règlement sans relevé,
+    relevé orphelin). L'apurement est une décision humaine tracée — cet écran
+    dit QUOI apurer, DEPUIS QUAND et D'OÙ ça vient. Rien n'est inventé."""
+    import datetime
+    lines = ledger_batch["records"]
+    by_entry = {}
+    for line in lines:
+        by_entry.setdefault(line["entry_id"], []).append(line)
+    rows = []
+    for line in lines:
+        if line["account_code"] != SUSPENSE[0]:
+            continue
+        contra = next((o for o in by_entry[line["entry_id"]]
+                       if o["account_code"] != SUSPENSE[0]), None)
+        booked = line["booked_at"][:10]
+        age = None
+        if as_of:
+            age = (datetime.date.fromisoformat(as_of)
+                   - datetime.date.fromisoformat(booked)).days
+        rows.append({
+            "entry_id": line["entry_id"],
+            "reference": line["reference"],
+            "side": line["side"],
+            "amount": line["amount"],
+            "contra_account": contra["account_code"] if contra else "?",
+            "contra_label": contra["account_label"] if contra else "n/d",
+            "booked_at": line["booked_at"],
+            "age_days": age,
+        })
+    rows.sort(key=lambda r: (-(r["age_days"] or 0), -abs(r["amount"]["amount"])))
+    return rows
+
+
 def pnl_summary(balance):
     """Compte de résultat condensé dérivé de la balance (SIG v1).
 

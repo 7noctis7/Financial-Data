@@ -159,7 +159,7 @@ INGEST_MAPPING = {
 
 def _accounting_payload(date, seed=42, n_trades=250):
     from mesh.accounting import (derive_ledger, off_balance_sheet, pnl_summary,
-                                 trial_balance)
+                                 suspense_worklist, trial_balance)
     from mesh.fees import derive_fees
     from sim.generator import SimulatedTradingSource, demo_statements
     trades = SimulatedTradingSource(seed=seed, n_trades=n_trades).fetch(date)
@@ -174,7 +174,35 @@ def _accounting_payload(date, seed=42, n_trades=250):
         "trial_balance": balance,
         "pnl": pnl_summary(balance),
         "off_balance_sheet": off_balance_sheet(trades),
+        "suspense_worklist": suspense_worklist(ledger, as_of=date),
+        "monthly_close": _monthly_close(date, seed, n_trades),
     }
+
+
+def _monthly_close(date, seed, n_trades):
+    """Clôture mensuelle M / M-1 : mois en cours (du 1er au jour d'arrêté) vs
+    même période du mois précédent. Recalculé, jamais estimé."""
+    from app.data import build_comparison
+    month_start = date[:8] + "01"
+    cmp = build_comparison(month_start, date, seed, n_trades)
+    cmp["label"] = "M (mois en cours à date) vs M-1 (même période, mois précédent)"
+    # M-1 = même période décalée d'un an dans build_comparison ; ici on veut le
+    # MOIS précédent : on recadre prev_period sur le mois M-1.
+    import datetime
+    d = datetime.date.fromisoformat(date)
+    prev_month_end = datetime.date(d.year, d.month, 1) - datetime.timedelta(days=1)
+    prev_start = prev_month_end.replace(day=1).isoformat()
+    prev_end = min(prev_month_end,
+                   prev_month_end.replace(day=min(d.day, prev_month_end.day))).isoformat()
+    from app.data import _period_flux
+    previous = _period_flux(prev_start, prev_end, seed, n_trades)
+    cmp["prev_period"] = {"from": prev_start, "to": prev_end}
+    cmp["previous"] = previous
+    for k in ("trades", "notional_eur", "fees_eur"):
+        delta = round(cmp["current"][k] - previous[k], 2)
+        pct = round(delta / previous[k], 4) if previous[k] else None
+        cmp["variation"][k] = {"delta": delta, "pct": pct}
+    return cmp
 
 
 def _ingest(body):
