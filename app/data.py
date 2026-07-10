@@ -84,10 +84,24 @@ def build_payload(business_date, seed=42, n_trades=250):
         by_class[CLASS_BY_INSTRUMENT[trade["instrument_id"]]] += eur
         total_notional += eur
 
+    # Concentration du risque de contrepartie : indice de Herfindahl-Hirschman
+    # (somme des carrés des parts d'exposition, 0→1) + parts des plus gros noms.
+    # Entièrement dérivé des expositions certifiées, aucune donnée inventée.
+    _exp = sorted((_eur(r["exposure"]) for r in exposures["records"]), reverse=True)
+    _tot = sum(_exp) or 1.0
+    _shares = [e / _tot for e in _exp]
+    concentration = {
+        "hhi": round(sum(s * s for s in _shares), 4),
+        "top1_share": round(_shares[0], 4) if _shares else 0.0,
+        "top3_share": round(sum(_shares[:3]), 4),
+        "counterparties": len(_shares),
+    }
+
     return {
         "business_date": business_date,
         "origin": trades["origin"],
         "params": {"seed": seed, "n_trades": n_trades},
+        "concentration": concentration,
         "kpis": {
             "trades": len(trades["records"]),
             "notional_eur": round(total_notional, 2),

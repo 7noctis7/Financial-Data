@@ -227,6 +227,7 @@
       <h2>Exposition par contrepartie</h2>
       <p class="hint">Notionnel vif valorisé en EUR — produit <code>risk:exposures</code></p>
       <div id="chart-expo"></div>
+      <p class="hint" id="concentration-note" style="margin-top:10px"></p>
     </div>
     <div class="card">
       <h2>Notionnel par classe d'actifs</h2>
@@ -570,6 +571,17 @@ function renderCharts(data, trades) {
       tip: `${data.counterparty_names[lei] || lei}<br>LEI ${lei}<br><b>${fmtEur(v)}</b> (périmètre filtré)`,
       onClick: () => expoIndex[lei] && counterpartyDetail(expoIndex[lei]),
     })), { aria: "Exposition par contrepartie en euros" });
+  const c = data.concentration;
+  if (c) {
+    const lvl = c.hhi >= 0.25 ? ["var(--critical)", "concentré"]
+      : c.hhi >= 0.15 ? ["var(--warning)", "modéré"] : ["var(--good)", "diversifié"];
+    $("#concentration-note").innerHTML =
+      `<b>Concentration</b> (dérivée, ${c.counterparties} contreparties) — indice HHI `
+      + `<b style="color:${lvl[0]}">${c.hhi.toFixed(4)}</b> (${lvl[1]}) · `
+      + `1ʳᵉ contrepartie ${(c.top1_share * 100).toFixed(1)} % · `
+      + `top 3 ${(c.top3_share * 100).toFixed(1)} %. `
+      + `<span style="color:var(--ink-muted)">HHI = Σ des carrés des parts (seuils indicatifs 0,15 / 0,25).</span>`;
+  }
   const byClass = {};
   for (const t2 of trades) if (t2.status !== "cancelled")
     byClass[classOf(t2)] = (byClass[classOf(t2)] || 0) + eur(t2.notional);
