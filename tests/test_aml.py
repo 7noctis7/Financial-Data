@@ -38,6 +38,31 @@ class TestAmlScreening(unittest.TestCase):
         self.assertEqual(top["features"]["pep"], 1.0)
         self.assertGreaterEqual(top["score"], 0.65)
 
+    def test_alert_carries_named_typologies_with_norm(self):
+        # Une alerte PEP à gros montant doit nommer les typologies qui se
+        # déclenchent, chacune avec sa référence de norme (jamais un score nu).
+        for p in self.kyc["records"]:
+            if p["lei"] == self.trades["records"][0]["counterparty_lei"]:
+                p.update(pep=True, risk_rating="high", residence_country="PA")
+        prediction = aml.screen(self.trades, self.kyc, self.lineage)
+        with_typo = [a for a in prediction["output"]["alerts"] if a["typologies"]]
+        self.assertTrue(with_typo)
+        for typ in with_typo[0]["typologies"]:
+            self.assertIn("id", typ)
+            self.assertTrue(typ["label"])
+            self.assertTrue(typ["norm_ref"])  # chaque typologie cite sa norme
+
+    def test_typologies_are_declarative_and_derived(self):
+        # Le prédicat ne dépend que des caractéristiques déjà calculées :
+        # aucune typologie inventée, chacune justifiée par la donnée.
+        from mesh.aml_typologies import match_typologies
+        high = {"pep": 1.0, "high_risk_country": 1.0, "risk_rating": 1.0,
+                "large_amount": 1.0, "velocity": 1.0}
+        clean = {"pep": 0.0, "high_risk_country": 0.0, "risk_rating": 0.0,
+                 "large_amount": 0.0, "velocity": 0.0}
+        self.assertEqual(len(match_typologies(high, {}, 5e7)), 5)  # toutes déclenchées
+        self.assertEqual(match_typologies(clean, {}, 0.0), [])     # aucune inventée
+
     def test_cancelled_trades_not_screened(self):
         prediction = aml.screen(self.trades, self.kyc, self.lineage)
         cancelled = sum(1 for t in self.trades["records"] if t["status"] == "cancelled")

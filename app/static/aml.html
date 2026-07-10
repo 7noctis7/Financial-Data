@@ -128,7 +128,7 @@
         Score explicable — modèle <code id="model"></code>
         <span style="flex:1"></span>
         <button class="theme-btn" id="csv-alerts" style="font-size:12px">⬇ CSV</button></p>
-      <table id="alerts"><tr><th>Trade</th><th>Client</th><th class="num">Montant</th><th style="width:150px">Score</th><th>Pourquoi</th><th></th></tr></table>
+      <table id="alerts"><tr><th>Trade</th><th>Client</th><th class="num">Montant</th><th style="width:150px">Score</th><th>Pourquoi + typologies (norme au survol)</th><th></th></tr></table>
       <p class="note" id="note"></p>
     </div>
   </div>
@@ -213,7 +213,10 @@ function render(data) {
       <td class="num">${fmtEur(a.amount_eur)}</td>
       <td><div class="score"><div class="meter"><div style="width:${a.score * 100}%"></div></div>
           <span class="pct">${(a.score * 100).toFixed(0)} %</span></div></td>
-      <td class="why">${explain(a.features)}</td>
+      <td class="why">${explain(a.features)}${(a.typologies && a.typologies.length)
+        ? "<br>" + a.typologies.map((t) =>
+            `<span class="chip" title="${t.norm_ref}" style="border-color:var(--warning);color:var(--warning)">${t.label}</span>`).join(" ")
+        : ""}</td>
       <td class="actions">${STATIC
         ? '<span class="why">décision : en local</span>'
         : '<button class="esc">⚑ Escalader</button><button class="dis">Classer</button>'}</td>`;

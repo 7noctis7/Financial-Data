@@ -7,6 +7,7 @@ feedback. Une alerte n'est jamais une accusation : c'est une priorité
 de revue.
 """
 
+from .aml_typologies import match_typologies
 from .derivations import FX_TO_EUR
 
 HIGH_RISK_COUNTRIES = {"KY", "PA", "VG", "IR", "KP"}
@@ -59,6 +60,7 @@ def screen(trades_batch, kyc_batch, lineage, feedback=None,
                 "amount_eur": round(eur, 2),
                 "score": round(score, 4),
                 "features": features,
+                "typologies": match_typologies(features, profile, eur),
             })
     alerts.sort(key=lambda a: -a["score"])
     return lineage.explain({
