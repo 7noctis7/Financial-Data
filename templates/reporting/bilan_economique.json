@@ -18,6 +18,9 @@
      "keys": ["CAP_INV"], "expected_context": "actif_economique"},
     {"name": "Actif économique = Immobilisations + BFR HE",
      "type": "recompute_total", "key": "k", "amount_key": "montant_eur",
-     "total": "ACTIF_ECO", "sum_of": ["IMMO", "BFRHE"]}
+     "total": "ACTIF_ECO", "sum_of": ["IMMO", "BFRHE"]},
+    {"name": "Capitaux propres (C) = Capital + Réserves + Résultat de l'exercice",
+     "type": "recompute_total", "key": "k", "amount_key": "montant_eur",
+     "total": "CP", "sum_of": ["CAPITAL", "RESERVES", "RESULTAT"]}
   ]
 }

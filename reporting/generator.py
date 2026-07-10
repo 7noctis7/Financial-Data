@@ -414,7 +414,9 @@ def _accounting_statement(trades, business_date, seed, dataset):
                        + balances.get("3021", 0.0), 2)
     attente = round(balances.get("9990", 0.0), 2)
     fee_income = round(-balances.get("7000", 0.0), 2)
-    equity = round(-balances.get("5000", 0.0) + fee_income, 2)
+    capital = round(-balances.get("5000", 0.0), 2)
+    reserves = 0.0  # aucun résultat antérieur accumulé (modèle mono-période v1)
+    equity = round(capital + reserves + fee_income, 2)
     if dataset == "balance_sheet_econ":
         endettement_net = round(0.0 - placements - disponible, 2)
         actif_eco = round(0.0 + attente, 2)  # immobilisations 0 + BFR HE
@@ -425,8 +427,16 @@ def _accounting_statement(trades, business_date, seed, dataset):
              "montant_eur": attente, "source": "solde 9990 Compte d'attente"},
             {"k": "ACTIF_ECO", "poste": "Actif economique (A+B)", "montant_eur": actif_eco,
              "source": "somme des lignes ci-dessus"},
-            {"k": "CP", "poste": "Capitaux propres (C)", "montant_eur": equity,
+            {"k": "CAPITAL", "poste": "Capital", "montant_eur": capital,
              "source": "solde crediteur 5000"},
+            {"k": "RESERVES", "poste": "Reserves et report a nouveau",
+             "montant_eur": reserves,
+             "source": "n/d - aucun resultat anterieur accumule (modele mono-periode v1)"},
+            {"k": "RESULTAT", "poste": "Resultat de l'exercice",
+             "montant_eur": fee_income,
+             "source": "solde crediteur 7000 - commissions de la periode (resultat non affecte)"},
+            {"k": "CP", "poste": "Capitaux propres (C)", "montant_eur": equity,
+             "source": "= capital + reserves + resultat de l'exercice"},
             {"k": "PLACEMENTS", "poste": "(-) Placements financiers",
              "montant_eur": -placements, "source": "soldes 3010+3020+3021"},
             {"k": "DISPO", "poste": "(-) Disponible", "montant_eur": -disponible,
