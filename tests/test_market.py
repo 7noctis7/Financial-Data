@@ -73,6 +73,57 @@ class TestValuations(unittest.TestCase):
         self.assertEqual(valuations["records"], [])  # jamais d'invention
 
 
+class TestYahooConnector(unittest.TestCase):
+    """Tests HORS LIGNE : la fonction de parsing est pure, la fixture
+    reproduit le format réel de l'API chart Yahoo."""
+
+    FIXTURE = {
+        "chart": {"result": [{
+            "meta": {"currency": "EUR"},
+            # 2026-07-07, 08, 09, 10 à 00:00 UTC
+            "timestamp": [1783382400, 1783468800, 1783555200, 1783641600],
+            "indicators": {"quote": [{
+                "close": [61.10, None, 62.00, 62.50],
+            }]},
+        }]},
+    }
+
+    def test_parse_takes_last_two_quotes_up_to_date(self):
+        from connectors.yahoo_finance import _parse_chart
+        close, prev_close, currency, close_date = _parse_chart(self.FIXTURE, "2026-07-10")
+        self.assertEqual((close, prev_close, currency), (62.50, 62.00, "EUR"))
+        self.assertLessEqual(close_date, "2026-07-10")
+
+    def test_parse_skips_null_quotes(self):
+        # Le None (jour férié / trou de cotation) ne doit jamais devenir un prix.
+        from connectors.yahoo_finance import _parse_chart
+        close, prev_close, _c, _d = _parse_chart(self.FIXTURE, "2026-07-09")
+        self.assertEqual((close, prev_close), (62.00, 61.10))
+
+    def test_parse_refuses_insufficient_history(self):
+        from connectors.yahoo_finance import YahooError, _parse_chart
+        with self.assertRaises(YahooError):
+            _parse_chart(self.FIXTURE, "2026-07-07")  # une seule cotation <= date
+        with self.assertRaises(YahooError):
+            _parse_chart({"chart": {"result": []}}, "2026-07-10")
+
+    def test_source_is_production_and_covers_known_instruments_only(self):
+        from connectors.yahoo_finance import TICKERS, YahooFinanceSource
+        from mesh.sources import PRODUCTION
+        self.assertEqual(YahooFinanceSource.origin, PRODUCTION)
+        known = {i for i, _c, _ccy, _m in INSTRUMENTS}
+        self.assertTrue(set(TICKERS) <= known)
+        # jamais de cours inventé pour les non-cotés (obligations, IRS)
+        self.assertNotIn("FR0014007L00", TICKERS)
+        self.assertNotIn("INT:IRS-EUR-5Y", TICKERS)
+
+    def test_valuations_carry_price_source(self):
+        prices = SimulatedMarketDataSource(seed=42).fetch(DATE)
+        trades = SimulatedTradingSource(seed=42, n_trades=50).fetch(DATE)
+        for record in derive_valuations(trades, prices, DATE)["records"]:
+            self.assertEqual(record["price_source"], "SIMULATED-EOD")
+
+
 class TestPipelineWithMarket(unittest.TestCase):
     def test_valuations_certified_in_daily_run(self):
         import tempfile

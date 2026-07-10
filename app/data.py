@@ -35,18 +35,44 @@ def _eur(money):
     return money["amount"] * FX_TO_EUR[money["currency"]]
 
 
+def _market_source(seed):
+    """FCC_MARKET=yahoo → cours réels (gratuits) ; défaut → simulés.
+
+    Le choix est celui de l'utilisateur, jamais deviné — et l'origine
+    (production/simulated) suit la source, donc G8 reste appliqué."""
+    import os
+    if os.environ.get("FCC_MARKET", "").lower() == "yahoo":
+        from connectors.yahoo_finance import YahooFinanceSource
+        return YahooFinanceSource(), ("Cours réels Yahoo Finance (actions + spot FX) ; "
+                                      "obligations/IRS non cotés : hors valorisation.")
+    return SimulatedMarketDataSource(seed=seed), None
+
+
 def build_payload(business_date, seed=42, n_trades=250):
     source = SimulatedTradingSource(seed=seed, n_trades=n_trades)
     trades = source.fetch(business_date)
     statements = simulate_bank_statements(trades, seed=seed)
     cash = derive_cash_positions(trades, statements, business_date)
     exposures = derive_exposures(trades, business_date)
-    market = SimulatedMarketDataSource(seed=seed)
-    prices = market.fetch(business_date)
+    market, market_note = _market_source(seed)
+    try:
+        prices = market.fetch(business_date)
+    except Exception as exc:  # réseau/format : repli EXPLICITE, jamais silencieux
+        market = SimulatedMarketDataSource(seed=seed)
+        market_note = f"Yahoo Finance indisponible ({exc}) — repli sur cours simulés."
+        prices = market.fetch(business_date)
     valuations = derive_valuations(trades, prices, business_date)
+
+    class _Fetched:  # le pipeline revalide le batch déjà téléchargé (1 seul appel réseau)
+        origin = prices["origin"]
+
+        @staticmethod
+        def fetch(_date):
+            return prices
+
     summary = run_business_day(
         business_date, source, lambda t: simulate_bank_statements(t, seed=seed),
-        market_source=market)
+        market_source=_Fetched)
 
     by_hour = Counter(int(t["executed_at"][11:13]) for t in trades["records"])
     by_class = Counter()
@@ -102,10 +128,13 @@ def build_payload(business_date, seed=42, n_trades=250):
                 "close": r["close"],
                 "daily_return": r["daily_return"],
                 "mtm_eur": r["mtm_pnl"]["amount"],
+                "price_source": r["price_source"],
             }
             for r in sorted(valuations["records"],
                             key=lambda r: -abs(r["mtm_pnl"]["amount"]))
         ],
+        "market_origin": prices["origin"],
+        "market_note": market_note,
         "mtm_total_eur": round(sum(r["mtm_pnl"]["amount"]
                                    for r in valuations["records"]), 2),
         "audit_anchor": summary.get("audit_head_hash"),

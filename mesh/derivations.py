@@ -107,6 +107,7 @@ def derive_valuations(trades_batch, prices_batch, business_date):
             "daily_return": round(daily_return, 6),
             "mtm_pnl": {"amount": round(position_eur * daily_return, 2),
                         "currency": "EUR"},
+            "price_source": price.get("price_source", "inconnue"),
             "computed_at": f"{business_date}T18:45:00Z",
         })
     return make_batch(

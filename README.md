@@ -40,6 +40,10 @@ python3 -m app export                      # site statique autonome → dist/
 L'explorateur SQL requiert la seule dépendance optionnelle du projet :
 `pip install duckdb`. Sans elle, dashboard et mesh fonctionnent normalement.
 
+**Cours de marché réels (gratuit)** : `FCC_MARKET=yahoo python3 -m app`
+valorise le portefeuille aux clôtures Yahoo Finance (actions + spot FX,
+`origin=production`) ; sans réseau, repli affiché sur les cours simulés.
+
 ## 2. Architecture d'ensemble
 
 Chaque domaine est **propriétaire** de sa donnée (règle : le domaine qui peut

@@ -38,6 +38,23 @@ FIX 4.4 → `urn:fcc:trading:executed-trades`).
 Ajout d'une source = une sous-classe. Le cœur du Data Product ne change
 pas (contrainte de flexibilité).
 
+### Connecteurs fournis
+
+| Connecteur | Flux externe | Produit alimenté | Origine |
+|---|---|---|---|
+| `fix_trading.py` | ExecutionReport FIX 4.4 | `trading:executed-trades` | production |
+| `camt053.py` | Relevés ISO 20022 camt.053 | relevés bancaires | production |
+| `yahoo_finance.py` | API chart Yahoo Finance (gratuite, sans clé) | `market:eod-prices` | production |
+
+**Yahoo Finance** : `FCC_MARKET=yahoo python3 -m app` bascule le
+dashboard sur les cours réels. Couverture honnête : actions (Air
+Liquide, ASML, Apple) au cours de clôture réel ; change à terme via le
+spot en proxy déclaré (`price_source` l'affiche) ; obligations et IRS
+non cotés sur Yahoo → absents du batch, donc **non valorisés** —
+`derive_valuations` n'invente jamais un cours. En cas d'erreur réseau,
+l'application replie sur les cours simulés et l'affiche en toutes
+lettres dans le panneau MtM (jamais de dégradation silencieuse).
+
 ## 3. Reporting certifié (`reporting/`)
 
 `ReportGenerator.generate()` tient quatre garanties au niveau du
