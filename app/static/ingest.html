@@ -136,16 +136,23 @@
     </div>
     <div class="card">
       <h2>Mapping ontologique</h2>
-      <p class="hint">Déclaratif — le dialecte source ne franchit jamais la frontière du mesh</p>
-      <table class="mapping">
-        <tr><th>Colonne source</th><th>Champ du contrat</th></tr>
-        <tr><td>Deal Id</td><td><code>trade_id</code></td></tr>
-        <tr><td>ISIN</td><td><code>instrument_id</code> (ontologie : Instrument)</td></tr>
-        <tr><td>LEI</td><td><code>counterparty_lei</code> (Counterparty)</td></tr>
-        <tr><td>Nominal + Ccy</td><td><code>notional</code> = (amount, currency)</td></tr>
-        <tr><td>State (minuscules)</td><td><code>status</code></td></tr>
-        <tr><td>Timestamp</td><td><code>executed_at</code> (ISO 8601 UTC)</td></tr>
-      </table>
+      <p class="hint">Déclaratif — le dialecte source ne franchit jamais la frontière du
+        mesh. Un profil par métier : la colonne source est traduite vers le champ du
+        contrat (terme d'ontologie), jamais l'inverse.</p>
+      <p class="hint" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        Métier :
+        <select id="map-domain">
+          <option value="trading">Trading (ingérable en local)</option>
+          <option value="accounting">Comptabilité</option>
+          <option value="finance">Finance (marché &amp; commissions)</option>
+          <option value="regulatory">Réglementaire</option>
+          <option value="reporting">Reporting</option>
+          <option value="controle_gestion">Contrôle de gestion</option>
+        </select>
+        <span id="map-target" class="hint" style="margin:0"></span>
+      </p>
+      <table class="mapping" id="mapping-table"></table>
+      <p class="hint" id="map-note" style="margin-top:8px"></p>
       <div id="result" style="margin-top:14px"></div>
     </div>
   </div>
@@ -171,6 +178,55 @@
 
 const $ = (s) => document.querySelector(s);
 const STATIC = JSON.parse($("#fcc-ingest-config").textContent) !== null;
+
+// Profils de mapping déclaratifs par métier : colonne source -> champ du
+// contrat (terme d'ontologie). Fondés sur les contrats réels du catalogue.
+const MAPPINGS = {
+  trading: { target: "Data Product trading:executed-trades (Trade)", live: true,
+    note: "Profil ingérable en local (POST /api/ingest) : validé contre le contrat, rejets motivés.",
+    rows: [["Deal Id", "trade_id"], ["ISIN", "instrument_id (ontologie : Instrument)"],
+      ["LEI", "counterparty_lei (Counterparty)"], ["Nominal + Ccy", "notional = (amount, currency)"],
+      ["State (minuscules)", "status"], ["Timestamp", "executed_at (ISO 8601 UTC)"]] },
+  accounting: { target: "Data Product accounting:general-ledger (JournalEntry)",
+    note: "Écriture en partie double : jamais saisie, dérivée d'un règlement — le mapping cible le contrat du grand livre.",
+    rows: [["N° pièce", "entry_id"], ["Référence règlement", "reference (ontologie : Settlement)"],
+      ["Compte général", "account_code"], ["Libellé compte", "account_label"],
+      ["Sens (D/C)", "side"], ["Montant + Devise", "amount = (amount, currency)"],
+      ["Date comptable", "booked_at (ISO 8601 UTC)"]] },
+  finance: { target: "Data Products market:eod-prices (MarketPrice) & fees:revenues (Fee)",
+    note: "Un cours sans source ni horodatage n'existe pas ; une commission est dérivée d'un Trade, jamais saisie.",
+    rows: [["Ticker / ISIN", "instrument_id (Instrument)"], ["Close + Ccy", "close = (amount, currency)"],
+      ["Prev Close + Ccy", "prev_close = (amount, currency)"], ["Date cours", "price_date (ISO 8601 UTC)"],
+      ["Source cours", "price_source"], ["Type de frais", "fee_type (Fee)"]] },
+  regulatory: { target: "Data Product regulatory:filings (Filing)",
+    note: "Un filing référence l'assertion certifiée qui couvre ses données (invariant n°3) ; publication bloquée hors production (G8).",
+    rows: [["ID déclaration", "filing_id"], ["Règle appliquée", "rule_ref (ontologie : RegulatoryRule)"],
+      ["Preuve d'assertion", "assertion_proof_hash (AuditAssertion)"],
+      ["Date de soumission", "submitted_at (ISO 8601 UTC)"]] },
+  reporting: { target: "Lignes de template certifié (reporting/generator.py)",
+    note: "Le reporting CONSOMME des produits certifiés : le mapping relie une source à une ligne de maquette (code, libellé, référence normative).",
+    rows: [["Code ligne", "row_ref (ex. F 01.01 : 010, 040…)"], ["Libellé de poste", "item"],
+      ["Référence normative", "reference (ex. IAS 1.54)"], ["Montant + Devise", "amount_eur"]] },
+  controle_gestion: { target: "Synthèse dérivée (fees:revenues, risk:exposures) — roadmap",
+    note: "Domaine de synthèse : agrégats DÉRIVÉS des produits certifiés, jamais ingérés directement. Centre de coût = extension roadmap.",
+    rows: [["Centre de coût / métier", "cost_center (roadmap)"], ["Produit (commissions)", "amount — fees:revenues"],
+      ["Exposition consommée", "exposure — risk:exposures"], ["Période", "period (AAAA-MM)"]] },
+};
+
+function renderMapping(domain) {
+  const m = MAPPINGS[domain] || MAPPINGS.trading;
+  $("#map-target").innerHTML = "→ cible : <code>" + m.target + "</code>"
+    + (m.live ? ' <span style="color:var(--good)">● local</span>'
+              : ' <span style="color:var(--ink-muted)">● cible documentée</span>');
+  $("#mapping-table").innerHTML =
+    "<tr><th>Colonne source</th><th>Champ du contrat</th></tr>"
+    + m.rows.map(([s, t]) => `<tr><td>${s}</td><td><code>${t}</code></td></tr>`).join("");
+  $("#map-note").textContent = m.note;
+}
+if ($("#map-domain")) {
+  $("#map-domain").onchange = (e) => renderMapping(e.target.value);
+  renderMapping("trading");
+}
 const SAMPLE = `Deal Id;ISIN;LEI;Nominal;Ccy;State;Timestamp
 D-1001;FR0000120271;R0MUWSFPU8MPRO8K5P83;1250000;EUR;EXECUTED;2026-07-09T10:12:00Z
 D-1002;US0378331005;G5GSEF7VJP5I7OUK5573;480000;USD;SETTLED;2026-07-09T11:03:00Z
