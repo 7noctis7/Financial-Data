@@ -107,7 +107,11 @@
   <div class="cols">
     <div class="card">
       <h2>Dossiers KYC</h2>
-      <p class="hint">Produit <code>client:kyc-profiles</code> — revue annuelle</p>
+      <p class="hint" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        Produit <code>client:kyc-profiles</code> — revue annuelle · filtrer :
+        <select id="f-rating"><option value="">toutes notations</option>
+          <option value="low">low</option><option value="medium">medium</option>
+          <option value="high">high</option><option value="pep">PEP uniquement</option></select></p>
       <p class="hint" style="border:1px solid var(--border);border-radius:8px;padding:8px 10px">
         <b>Méthodologie de notation</b> (règles déclaratives, aucune notation arbitraire) :
         <b>high</b> = PEP déclaré OU juridiction à vigilance renforcée (liste interne alignée GAFI) ·
@@ -120,7 +124,10 @@
     </div>
     <div class="card">
       <h2>Alertes du jour</h2>
-      <p class="hint">Score explicable — modèle <code id="model"></code></p>
+      <p class="hint" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        Score explicable — modèle <code id="model"></code>
+        <span style="flex:1"></span>
+        <button class="theme-btn" id="csv-alerts" style="font-size:12px">⬇ CSV</button></p>
       <table id="alerts"><tr><th>Trade</th><th>Client</th><th class="num">Montant</th><th style="width:150px">Score</th><th>Pourquoi</th><th></th></tr></table>
       <p class="note" id="note"></p>
     </div>
@@ -158,6 +165,29 @@ const WHY = { pep: "PEP", high_risk_country: "pays à risque", risk_rating: "not
 const explain = (f) => Object.entries(WHY).filter(([k]) => f[k] > 0)
   .map(([k, l]) => `${l} ${(f[k] * 100).toFixed(0)} %`).join(" · ") || "—";
 
+function renderProfiles(profiles) {
+  $("#profiles").innerHTML =
+    "<tr><th>Client</th><th>Notation</th><th>Drapeaux</th><th>Résidence</th></tr>" +
+    (profiles.length ? profiles.map((p) => `<tr>
+      <td>${p.name}<br><span class="why">${p.client_id} · LEI ${p.lei.slice(0, 8)}…</span>
+        ${p.rating_rationale ? `<br><span class="why">↳ ${p.rating_rationale}</span>` : ""}</td>
+      <td><span class="chip ${p.risk_rating}">${p.risk_rating}</span></td>
+      <td>${p.pep ? '<span class="chip pep">PEP</span>' : ""}</td>
+      <td>${p.residence_country}</td></tr>`).join("")
+      : '<tr><td colspan="4" class="why">Aucun dossier ne correspond au filtre.</td></tr>');
+}
+
+function exportAlertsCsv(data) {
+  const head = "trade_id;client;montant_eur;score;facteurs";
+  const lines = data.alerts.map((a) =>
+    [a.trade_id, a.client_name, a.amount_eur, a.score, explain(a.features)]
+      .map((v) => String(v).replaceAll(";", ",")).join(";"));
+  const blob = new Blob(["\ufeff" + [head, ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
+  const link = Object.assign(document.createElement("a"),
+    { href: URL.createObjectURL(blob), download: `alertes-aml-${data.business_date}.csv` });
+  link.click(); URL.revokeObjectURL(link.href);
+}
+
 function render(data) {
   $("#kpis").innerHTML =
     tile("Journée", fmtDate(data.business_date)) +
@@ -167,14 +197,13 @@ function render(data) {
     tile("Trades criblés", data.screened_trades) +
     tile("Alertes", data.alerts.length);
   $("#model").textContent = data.model;
-  $("#profiles").innerHTML =
-    "<tr><th>Client</th><th>Notation</th><th>Drapeaux</th><th>Résidence</th></tr>" +
-    data.profiles.map((p) => `<tr>
-      <td>${p.name}<br><span class="why">${p.client_id} · LEI ${p.lei.slice(0, 8)}…</span>
-        ${p.rating_rationale ? `<br><span class="why">↳ ${p.rating_rationale}</span>` : ""}</td>
-      <td><span class="chip ${p.risk_rating}">${p.risk_rating}</span></td>
-      <td>${p.pep ? '<span class="chip pep">PEP</span>' : ""}</td>
-      <td>${p.residence_country}</td></tr>`).join("");
+  renderProfiles(data.profiles);
+  $("#f-rating").onchange = () => {
+    const f = $("#f-rating").value;
+    renderProfiles(data.profiles.filter((p) =>
+      !f || (f === "pep" ? p.pep : p.risk_rating === f)));
+  };
+  $("#csv-alerts").onclick = () => exportAlertsCsv(data);
   const grid = $("#alerts");
   for (const a of data.alerts) {
     const row = grid.insertRow();

@@ -89,6 +89,13 @@
   <p class="sub">Chaque livrable embarque son Annexe de Preuve : norme source, horodatage UTC,
   demandeur, empreinte SHA-256 et les assertions d'audit vérifiées dans le journal chaîné (règle G10).
   Essaie le rôle <b>viewer</b> pour voir la sécurité contextuelle (G9) refuser l'export en direct.</p>
+  <div class="card" id="pack" style="margin-bottom:12px" hidden>
+    <h2 style="font-size:14px;margin:0 0 2px">Pack quotidien</h2>
+    <p class="hint" style="margin:0 0 10px">Tous les rapports du catalogue en PDF certifié, en un
+      clic — chaque livrable garde son Annexe de Preuve et ses contrôles bloquants</p>
+    <button class="primary" id="pack-run">Générer le pack du jour (PDF)</button>
+    <div id="pack-result" style="margin-top:10px;font-size:13px"></div>
+  </div>
   <div class="grid" id="templates"></div>
   <div id="result"></div>
 </div>
@@ -169,10 +176,36 @@ async function generate(id, fmt, role) {
   </dl><a class="dl" href="${body.download}" download>⬇ Télécharger le rapport</a>`);
 }
 
+async function dailyPack(templates) {
+  const out = [];
+  $("#pack-run").disabled = true;
+  for (const [i, t] of templates.entries()) {
+    $("#pack-result").textContent = `Génération ${i + 1}/${templates.length} — ${t.name}…`;
+    const res = await fetch("/api/reports/generate", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ template: t.id, format: "pdf", role: t.roles[0],
+                             requester: "pack-quotidien",
+                             date: new Date().toISOString().slice(0, 10) }) });
+    const body = await res.json();
+    out.push(res.ok
+      ? `<a class="dl" href="${body.download}" download>⬇ ${body.path.split("/").pop()}</a>`
+      : `<span style="color:var(--critical)">✕ ${t.name} : ${body.error}</span>`);
+  }
+  $("#pack-run").disabled = false;
+  const ok = out.filter((x) => x.startsWith("<a")).length;
+  $("#pack-result").innerHTML =
+    `<p style="margin:0 0 8px">${ok}/${templates.length} livrables certifiés :</p>` +
+    `<div style="display:flex;gap:8px;flex-wrap:wrap">${out.join(" ")}</div>`;
+}
+
 (async () => {
   const templates = STATIC ? config.templates
     : (await (await fetch("/api/reports/templates")).json()).templates;
   $("#templates").innerHTML = templates.map(card).join("");
+  if (!STATIC) {
+    $("#pack").hidden = false;
+    $("#pack-run").onclick = () => dailyPack(templates);
+  }
   if (!STATIC)
     document.querySelectorAll("[data-generate]").forEach((btn) =>
       btn.addEventListener("click", () => {

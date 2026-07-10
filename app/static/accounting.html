@@ -106,12 +106,13 @@
   <div class="cols">
     <div class="card">
       <h2>Balance générale</h2>
-      <p class="hint">Produit <code>accounting:general-ledger</code> — par compte et devise</p>
+      <p class="hint">Produit <code>accounting:general-ledger</code> — par compte et devise ·
+        cliquer un compte filtre les écritures</p>
       <table id="balance"></table>
     </div>
     <div class="card">
       <h2>Dernières écritures</h2>
-      <p class="hint">Chaque événement = un débit + un crédit, même montant, même devise</p>
+      <p class="hint" id="entries-hint">Chaque événement = un débit + un crédit, même montant, même devise</p>
       <table id="entries"></table>
       <p class="note" id="note"></p>
     </div>
@@ -145,6 +146,25 @@ const tile = (label, value, cls, note) =>
   `<div class="tile"><div class="label">${label}</div>
    <div class="value ${cls || ""}">${value}</div>${note ? `<div class="note">${note}</div>` : ""}</div>`;
 
+let accountFilter = null;
+
+function renderEntries(data, account) {
+  accountFilter = account;
+  const entries = account ? data.entries.filter((e) => e.account_code === account) : data.entries;
+  $("#entries-hint").innerHTML = account
+    ? `Filtre : compte <code>${account}</code> (${entries.length} écriture${entries.length > 1 ? "s" : ""} affichée${entries.length > 1 ? "s" : ""}) — recliquer le compte pour réinitialiser`
+    : "Chaque événement = un débit + un crédit, même montant, même devise";
+  $("#entries").innerHTML =
+    "<tr><th>Écriture</th><th>Compte</th><th>Sens</th><th class='num'>Montant</th><th>Référence</th></tr>" +
+    (entries.length ? entries.map((e) => `<tr>
+      <td><code>${e.entry_id.slice(-8)}</code></td>
+      <td><code>${e.account_code}</code> ${e.account_label}</td>
+      <td><span class="chip ${e.side}">${e.side === "debit" ? "Débit" : "Crédit"}</span></td>
+      <td class="num">${fmtAmt(e.amount.amount)} ${e.amount.currency}</td>
+      <td><code>${e.reference.slice(0, 22)}</code></td></tr>`).join("")
+      : '<tr><td colspan="5" style="color:var(--ink-muted)">Aucune écriture pour ce compte dans l\'échantillon affiché.</td></tr>');
+}
+
 function render(data) {
   const tb = data.trial_balance;
   const suspense = Object.entries(tb.suspense);
@@ -162,7 +182,7 @@ function render(data) {
     tb.accounts.map((a) => {
       const t = totals[a.currency] ||= { debit: 0, credit: 0 };
       t.debit += a.debit; t.credit += a.credit;
-      return `<tr class="${a.account_code === "9990" && a.balance !== 0 ? "suspense" : ""}">
+      return `<tr data-account="${a.account_code}" class="${a.account_code === "9990" && a.balance !== 0 ? "suspense" : ""}">
         <td><code>${a.account_code}</code> ${a.account_label}</td><td>${a.currency}</td>
         <td class="num">${fmtAmt(a.debit)}</td><td class="num">${fmtAmt(a.credit)}</td>
         <td class="num">${fmtAmt(a.balance)}</td></tr>`;
@@ -171,14 +191,14 @@ function render(data) {
       <td class="num">${fmtAmt(t.debit)}</td><td class="num">${fmtAmt(t.credit)}</td>
       <td class="num">${fmtAmt(t.debit - t.credit)}</td></tr>`).join("");
 
-  $("#entries").innerHTML =
-    "<tr><th>Écriture</th><th>Compte</th><th>Sens</th><th class='num'>Montant</th><th>Référence</th></tr>" +
-    data.entries.map((e) => `<tr>
-      <td><code>${e.entry_id.slice(-8)}</code></td>
-      <td><code>${e.account_code}</code> ${e.account_label}</td>
-      <td><span class="chip ${e.side}">${e.side === "debit" ? "Débit" : "Crédit"}</span></td>
-      <td class="num">${fmtAmt(e.amount.amount)} ${e.amount.currency}</td>
-      <td><code>${e.reference.slice(0, 22)}</code></td></tr>`).join("");
+  renderEntries(data, null);
+  document.querySelectorAll("#balance tr[data-account]").forEach((row) => {
+    row.style.cursor = "pointer";
+    row.onclick = () => {
+      const account = row.dataset.account === accountFilter ? null : row.dataset.account;
+      renderEntries(data, account);
+    };
+  });
 
   $("#note").textContent = "Dérivé des produits trading:executed-trades et treasury:cash-positions "
     + `(provenance ${data.origin}). Requêtable en SQL : table ledger de l'explorateur.`;

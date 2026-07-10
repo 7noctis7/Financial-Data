@@ -102,6 +102,21 @@
     KYC/AML. <b>PEP</b> = personne politiquement exposée (obligations LBC-FT, vigilance
     renforcée).</p></details>
 
+  <details><summary>Les cours de marché sont-ils réels ?</summary>
+    <p>Au choix. Par défaut, les clôtures sont simulées (déterministes, marquées
+    <code>SIMULATED-EOD</code>). En lançant <code>FCC_MARKET=yahoo python3 -m app</code>, le
+    connecteur <b>Yahoo Finance</b> (gratuit, sans clé) fournit les cours réels des actions et le
+    spot FX en proxy déclaré — la colonne « Source du cours » du panneau MtM affiche la provenance
+    de chaque prix. Les instruments non cotés sur Yahoo (obligations, swaps) ne sont <b>pas
+    valorisés</b> : le système n'invente jamais un cours. En cas de panne réseau, le repli sur les
+    cours simulés est affiché en toutes lettres.</p></details>
+  <details><summary>Comment est calculée la valorisation mark-to-market ?</summary>
+    <p>Méthode v1, assumée dans le contrat <code>risk:valuations</code> : rendement du jour
+    (clôture / clôture de la veille ouvrée − 1) appliqué au notionnel vif de chaque instrument,
+    converti en EUR. C'est une variation de valeur quotidienne, pas une full-revaluation — une
+    méthode plus fine (courbes, sensibilités) remplacera la fonction sans changer le
+    contrat.</p></details>
+
   <h2>Contrôles &amp; confiance</h2>
   <details><summary>Comment être sûr qu'aucune donnée ne se perd ?</summary>
     <p>Cinq maillons contrôlés par le code (<code>docs/data-quality-trust.md</code>) : totaux de
@@ -125,6 +140,11 @@
     trésorerie…), un format (CSV/XLSX/PDF) et un rôle. Chaque livrable embarque son Annexe de
     Preuve : norme source, horodatage UTC, demandeur, SHA-256, assertions, contrôles. Le bilan et
     le PnL s'exportent aussi depuis la page <b>Comptabilité</b>.</p></details>
+  <details><summary>Le journal d'audit survit-il à un redémarrage ?</summary>
+    <p>Oui. Le journal chaîné est persistant (<code>data/audit-server.jsonl</code>, append-only) :
+    chaque décision 4 yeux, rapport généré ou refus d'accès y entre définitivement. À chaque
+    ouverture, la chaîne SHA-256 est re-vérifiée — un fichier falsifié refuse de s'ouvrir. La page
+    <b>Audit</b> permet de le consulter et de filtrer par action.</p></details>
   <details><summary>Comment vérifier un chiffre six mois plus tard ?</summary>
     <p>Du document au hash (Annexe de Preuve), du hash à l'entrée de journal
     (<code>verify_chain</code>), de l'entrée à l'assertion, de l'assertion aux données sources —

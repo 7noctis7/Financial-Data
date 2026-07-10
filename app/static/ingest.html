@@ -98,6 +98,14 @@
       <h2>Fichier CSV</h2>
       <p class="hint">Colonnes attendues : <code>Deal Id;ISIN;LEI;Nominal;Ccy;State;Timestamp</code></p>
       <textarea id="csv" spellcheck="false"></textarea>
+      <p class="hint" style="margin-top:10px">Totaux de contrôle (exhaustivité — un écart fait
+        refuser le fichier en totalité) :</p>
+      <div class="row">
+        <input type="number" id="ct-rows" placeholder="lignes annoncées" min="0"
+               style="width:150px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--page);color:var(--ink-1);font:inherit">
+        <input type="text" id="ct-sums" placeholder="sommes annoncées, ex. EUR=1250000;USD=480000"
+               style="flex:1;min-width:220px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--page);color:var(--ink-1);font:inherit">
+      </div>
       <div class="row">
         <input type="file" id="file" accept=".csv,text/csv">
         <select id="origin"><option value="simulated">origin : simulated</option>
@@ -155,12 +163,25 @@ $("#file").addEventListener("change", async (e) => {
   if (f) $("#csv").value = await f.text();
 });
 
+function controlTotals() {
+  const totals = {};
+  if ($("#ct-rows").value) totals.rows = Number($("#ct-rows").value);
+  const sums = {};
+  for (const part of $("#ct-sums").value.split(";")) {
+    const [ccy, amount] = part.split("=").map((x) => x && x.trim());
+    if (ccy && amount && !Number.isNaN(Number(amount))) sums[ccy.toUpperCase()] = Number(amount);
+  }
+  if (Object.keys(sums).length) { totals.field = "notional"; totals.sums = sums; }
+  return Object.keys(totals).length ? totals : null;
+}
+
 $("#run").onclick = async () => {
   if (STATIC) return;
   const res = await fetch("/api/ingest", {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ csv: $("#csv").value, origin: $("#origin").value,
-                           actor: "webapp", filename: ($("#file").files[0] || {}).name || "saisie" }) });
+                           actor: "webapp", filename: ($("#file").files[0] || {}).name || "saisie",
+                           control_totals: controlTotals() }) });
   const body = await res.json();
   if (!res.ok) { $("#result").innerHTML = `<span class="err">${body.error}</span>`; return; }
   $("#result").innerHTML = `
