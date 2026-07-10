@@ -40,13 +40,16 @@ class AuditLog:
             self._path = Path(path)
             if self._path.exists():
                 with self._path.open(encoding="utf-8") as fh:
-                    self._entries = [json.loads(line) for line in fh if line.strip()]
-                broken = self.verify_chain()
-                if broken is not None:
-                    raise ValueError(
-                        f"journal d'audit corrompu à l'entrée {broken} : {self._path}")
+                    self._load_lines(fh)
 
-    def append(self, actor, action, subject_urn, details, timestamp):
+    def _load_lines(self, fh):
+        self._entries = [json.loads(line) for line in fh if line.strip()]
+        broken = self.verify_chain()
+        if broken is not None:
+            raise ValueError(
+                f"journal d'audit corrompu à l'entrée {broken} : {self._path}")
+
+    def _make_entry(self, actor, action, subject_urn, details, timestamp):
         payload = {
             "index": len(self._entries),
             "actor": actor,
@@ -58,13 +61,36 @@ class AuditLog:
         prev_hash = self._entries[-1]["hash"] if self._entries else GENESIS
         entry = dict(payload, prev_hash=prev_hash, hash=_hash_entry(prev_hash, payload))
         self._entries.append(entry)
-        if self._path is not None:
-            self._path.parent.mkdir(parents=True, exist_ok=True)
-            with self._path.open("a", encoding="utf-8") as fh:
-                fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        return entry
+
+    def append(self, actor, action, subject_urn, details, timestamp):
+        if self._path is None:
+            return self._make_entry(actor, action, subject_urn, details,
+                                    timestamp)["hash"]
+        # Persistant : le fichier est LA tête de chaîne. Verrou exclusif,
+        # relecture (un autre processus — serveur, export — a pu écrire
+        # entre-temps), puis chaînage sur la vraie tête. Sans cela, deux
+        # processus concurrents casseraient la chaîne.
+        import fcntl
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        with self._path.open("a+", encoding="utf-8") as fh:
+            fcntl.flock(fh, fcntl.LOCK_EX)
+            fh.seek(0)
+            self._load_lines(fh)
+            entry = self._make_entry(actor, action, subject_urn, details, timestamp)
+            fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            fh.flush()
+            fcntl.flock(fh, fcntl.LOCK_UN)
         return entry["hash"]
 
+    def reload(self):
+        """Relit le fichier (utile quand un autre processus a écrit)."""
+        if self._path is not None and self._path.exists():
+            with self._path.open(encoding="utf-8") as fh:
+                self._load_lines(fh)
+
     def entries(self):
+        self.reload()
         return list(self._entries)
 
     def verify_chain(self):

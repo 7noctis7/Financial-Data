@@ -12,6 +12,18 @@ fédérée, une ontologie commune et un moteur de preuve d'audit immuable.
   filtres par colonne, tri, pagination, export CSV) ou en SQL DuckDB — en local
   via l'API, en ligne via DuckDB-WASM dans le navigateur
 
+> **English summary** — Financial Command Center is a banking data platform
+> built as a **Data Mesh**: each business domain (Trading, Treasury, Risk,
+> Market Data, Accounting, Client Lifecycle, Audit, Regulatory) owns and
+> publishes its Data Product under a versioned contract, a federated ontology
+> and a tamper-evident, hash-chained audit log. Governance rules (G1–G11) are
+> enforced **in code**: origin tracking blocks simulated data from regulatory
+> filings, four-eyes approval is required on sensitive decisions, every
+> certified figure carries a SHA-256 proof annex. Runs locally with zero
+> dependencies (`python3 -m app`) and deploys free as a static site on GitHub
+> Pages, with an in-browser SQL explorer (DuckDB-WASM). All numbers shown are
+> derived — never invented: no price, no valuation; no proof, no publication.
+
 ---
 
 ## 1. Démarrage rapide

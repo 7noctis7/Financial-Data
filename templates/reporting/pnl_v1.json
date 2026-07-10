@@ -1,15 +1,32 @@
 {
   "name": "Compte de résultat v1 (trame PnL.xls)",
   "department": "treasury",
-  "norm_ref": "Trame interne templates/reporting/Templates:Accounting/PnL.xls (Anafi) — périmètre v1 : aucun flux de revenus au grand livre, état déclaré vide",
+  "norm_ref": "Trame interne templates/reporting/Templates:Accounting/PnL.xls (Anafi) — périmètre v1 : commissions perçues (compte 7000) avec comparatif N-1 ; charges d'exploitation hors périmètre, déclarées à zéro",
   "classification": "internal",
-  "roles": ["treasury-ops", "auditor", "regulatory-officer"],
+  "roles": [
+    "treasury-ops",
+    "auditor",
+    "regulatory-officer"
+  ],
   "title": "Compte de résultat — soldes intermédiaires de gestion (v1)",
   "dataset": "pnl_v1",
   "columns": [
-    {"key": "poste", "label": "Poste"},
-    {"key": "montant_eur", "label": "Montant (EUR)"},
-    {"key": "source", "label": "Dérivation / justification"}
+    {
+      "key": "poste",
+      "label": "Poste"
+    },
+    {
+      "key": "montant_eur",
+      "label": "Montant (EUR)"
+    },
+    {
+      "key": "source",
+      "label": "Dérivation / justification"
+    }
   ],
-  "required_assertions": ["existence", "completeness", "presentation"]
+  "required_assertions": [
+    "existence",
+    "completeness",
+    "presentation"
+  ]
 }

@@ -62,6 +62,21 @@ class TestPersistentAuditLog(unittest.TestCase):
             lines = path.read_text(encoding="utf-8").strip().splitlines()
             self.assertEqual(len(lines), 2)
 
+    def test_two_writers_share_one_chain(self):
+        # Serveur et export écrivent le même journal : chaque append doit
+        # se chaîner sur la tête du FICHIER, pas sur la mémoire locale.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "audit.jsonl"
+            a, b = AuditLog(path=path), AuditLog(path=path)
+            for i in range(5):
+                a.append("server@fcc", "test.a", "urn:fcc:audit:journal",
+                         {"i": i}, "2026-07-09T10:00:00Z")
+                b.append("export@fcc", "test.b", "urn:fcc:audit:journal",
+                         {"i": i}, "2026-07-09T10:00:01Z")
+            check = AuditLog(path=path)
+            self.assertEqual(len(check.entries()), 10)
+            self.assertIsNone(check.verify_chain())
+
     def test_tampered_file_refuses_to_open(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "audit.jsonl"

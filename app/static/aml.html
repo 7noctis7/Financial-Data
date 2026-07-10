@@ -79,6 +79,13 @@
   .note { color: var(--ink-muted); font-size: 12px; margin-top: 12px; }
   code { font-size: 12px; }
   nav a.current, a.badge.current { background: var(--accent); color: #fff !important; border-color: var(--accent); }
+
+  @media print {
+    nav, .theme-btn, button, select, .filter-bar, #tooltip, .tooltip { display: none !important; }
+    body { background: #fff !important; color: #000 !important; }
+    .card, .tile { border: 1px solid #ccc !important; break-inside: avoid; box-shadow: none !important; }
+    a { color: inherit; text-decoration: none; }
+  }
 </style>
 </head>
 <body>

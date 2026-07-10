@@ -442,11 +442,25 @@ def _accounting_statement(trades, business_date, seed, dataset):
             summary.append(f"Point d'attention : compte d'attente {attente:,.2f} EUR "
                            "a apurer (flux inexpliques).".replace(",", " "))
         return ledger, rows, context, summary
-    # PnL v1 : aucun flux de revenus au grand livre — etat honnete
+    # PnL v1 : seuls les flux reellement au grand livre — etat honnete,
+    # avec comparatif N-1 (jour ouvre precedent, meme derivation).
+    from sim.generator import SimulatedTradingSource, _prev_business_day
+    prev_date = _prev_business_day(business_date)
+    prev_trades = SimulatedTradingSource(seed=seed).fetch(prev_date)
+    _, prev_balances = _ledger_balances_eur(prev_trades, prev_date, seed)
+    prev_fee = round(-prev_balances.get("7000", 0.0), 2)
+    delta = round(fee_income - prev_fee, 2)
     rows = [
         {"k": "CA", "poste": "CHIFFRE D'AFFAIRES (commissions percues)",
          "montant_eur": fee_income,
          "source": "solde crediteur 7000 - courtage derive des trades (bareme mesh/fees.py)"},
+        {"k": "CA_N1", "poste": f"  rappel N-1 ({_fr(prev_date + 'T00:00:00Z')})",
+         "montant_eur": prev_fee,
+         "source": "meme derivation, jour ouvre precedent"},
+        {"k": "CA_VAR", "poste": "  variation N / N-1",
+         "montant_eur": delta,
+         "source": (f"{delta / prev_fee:+.1%} vs jour ouvre precedent"
+                    if prev_fee else "N-1 nul : variation non significative")},
         {"k": "CHARGES", "poste": "Charges d'exploitation", "montant_eur": 0.0,
          "source": "hors perimetre v1 (salaires, frais generaux non modelises)"},
         {"k": "EBE", "poste": "EXCEDENT BRUT D'EXPLOITATION",
@@ -456,6 +470,8 @@ def _accounting_statement(trades, business_date, seed, dataset):
     summary = [
         f"Synthese : commissions de courtage {fee_income:,.2f} EUR (bareme en points".replace(",", " "),
         "de base par classe d'instrument, derive de chaque trade non annule).",
+        (f"Comparatif : {prev_fee:,.2f} EUR au jour ouvre precedent, variation "
+         f"{delta:+,.2f} EUR.").replace(",", " "),
         "Charges d'exploitation hors perimetre v1 : EBE = CA.",
     ]
     return ledger, rows, context, summary
