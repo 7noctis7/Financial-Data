@@ -33,10 +33,6 @@ from .data import build_payload
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 DIST_DIR = Path(__file__).resolve().parent.parent / "dist"
-DATA_PLACEHOLDER = '<script id="fcc-data" type="application/json">null</script>'
-EXPLORER_PLACEHOLDER = '<script id="fcc-explorer-config" type="application/json">null</script>'
-REPORTS_PLACEHOLDER = '<script id="fcc-reports-config" type="application/json">null</script>'
-RECON_PLACEHOLDER = '<script id="fcc-recon-config" type="application/json">null</script>'
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 PORT = 8787
 MAX_BODY_BYTES = 5 * 1024 * 1024  # plafond anti-DoS mémoire sur les corps POST (S3)
@@ -489,73 +485,21 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 def export(business_date, seed=42, n_trades=250):
-    payload = build_payload(business_date, seed, n_trades)
-    page = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
-    if DATA_PLACEHOLDER not in page:
-        raise RuntimeError("placeholder de données introuvable dans index.html")
-    page = page.replace(
-        DATA_PLACEHOLDER,
-        '<script id="fcc-data" type="application/json">'
-        + json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
-        + "</script>",
-    )
+    """Export statique du produit KYC/AML seul : accueil + criblage + cas.
+
+    Les autres modules sont archivés en brouillon (drafts/) et ne sont ni
+    servis ni publiés. Pour les réactiver, voir drafts/README.md."""
+    shutil.rmtree(DIST_DIR, ignore_errors=True)  # publication déterministe : aucune page archivée résiduelle
     DIST_DIR.mkdir(exist_ok=True)
-    (DIST_DIR / "index.html").write_text(page, encoding="utf-8")
-    print(f"export statique : {DIST_DIR / 'index.html'} ({business_date}, seed={seed})")
-    _export_explorer()
-    _export_reports(business_date)
-    _export_embedded("recon.html", RECON_PLACEHOLDER, _recon_payload(business_date, seed))
+    shutil.copy(STATIC_DIR / "index.html", DIST_DIR / "index.html")
+    print(f"export statique KYC/AML : {DIST_DIR / 'index.html'} ({business_date}, seed={seed})")
     _export_embedded("aml.html",
                      '<script id="fcc-aml-config" type="application/json">null</script>',
                      _aml_payload(business_date, seed))
     _export_embedded("cases.html",
                      '<script id="fcc-cases-config" type="application/json">null</script>',
                      cases_view.payload(_REGISTRY, _AUDIT, business_date, seed))
-    _export_embedded("ingest.html",
-                     '<script id="fcc-ingest-config" type="application/json">null</script>',
-                     {"mode": "static"})
-    _export_embedded("accounting.html",
-                     '<script id="fcc-accounting-config" type="application/json">null</script>',
-                     _accounting_payload(business_date, seed))
-    shutil.copy(STATIC_DIR / "faq.html", DIST_DIR / "faq.html")
-    print("export faq.html")
-    _export_embedded("audit.html",
-                     '<script id="fcc-audit-config" type="application/json">null</script>',
-                     {"total": len(_AUDIT.entries()),
-                      "chain_intact": _AUDIT.verify_chain() is None,
-                      "entries": _AUDIT.entries()[-100:][::-1],
-                      "dictionary": sorted([{
-                          "urn": c["urn"], "domain": c["domain"], "name": c["name"],
-                          "version": c["version"], "entity": c["output_schema"]["entity"],
-                          "classification": c["access"]["classification"],
-                          "owner": c["owner"], "sources": c["sources"],
-                          "fields": c["output_schema"]["fields"]}
-                          for c in _REGISTRY.products.values()],
-                          key=lambda d: d["urn"])})
 
-
-def _export_reports(business_date):
-    """Rapports pré-générés pour la version en ligne (CSV + PDF chacun)."""
-    generator = _report_generator()
-    dest = DIST_DIR / "reports"
-    dest.mkdir(parents=True, exist_ok=True)
-    files = {}
-    for template in _templates_listing():
-        role = (template["roles"] or ["auditor"])[0]
-        files[template["id"]] = {}
-        for fmt in ("csv", "pdf"):
-            meta = generator.demo(template["id"], fmt, requester="ci-export",
-                                  role=role, business_date=business_date)
-            shutil.copy(meta["path"], dest / Path(meta["path"]).name)
-            files[template["id"]][fmt] = f"reports/{Path(meta['path']).name}"
-    page = (STATIC_DIR / "reports.html").read_text(encoding="utf-8")
-    config = {"templates": _templates_listing(), "files": files}
-    page = page.replace(REPORTS_PLACEHOLDER,
-                        '<script id="fcc-reports-config" type="application/json">'
-                        + json.dumps(config, ensure_ascii=False).replace("</", "<\\/")
-                        + "</script>")
-    (DIST_DIR / "reports.html").write_text(page, encoding="utf-8")
-    print(f"export rapports : {sum(len(v) for v in files.values())} livrables → dist/reports/")
 
 
 def _export_embedded(name, placeholder, payload):
@@ -571,31 +515,6 @@ def _export_embedded(name, placeholder, payload):
     (DIST_DIR / name).write_text(page, encoding="utf-8")
     print(f"export {name}")
 
-
-def _export_explorer():
-    """Explorateur en ligne : Parquet copiés dans dist/, SQL via DuckDB-WASM."""
-    if not warehouse.HAS_DUCKDB:
-        print("duckdb absent : explorateur non exporté (pip install duckdb)")
-        return
-    shutil.rmtree(warehouse.WAREHOUSE_DIR, ignore_errors=True)
-    warehouse.build_warehouse()
-    dest = DIST_DIR / "data"
-    dest.mkdir(parents=True, exist_ok=True)
-    tables = {}
-    for parquet in sorted(warehouse.WAREHOUSE_DIR.glob("*.parquet")):
-        shutil.copy(parquet, dest / parquet.name)
-        tables[parquet.stem] = f"data/{parquet.name}"
-    page = (STATIC_DIR / "explorer.html").read_text(encoding="utf-8")
-    if EXPLORER_PLACEHOLDER not in page:
-        raise RuntimeError("placeholder de configuration introuvable dans explorer.html")
-    config = {"mode": "wasm", "tables": tables}
-    page = page.replace(
-        EXPLORER_PLACEHOLDER,
-        '<script id="fcc-explorer-config" type="application/json">'
-        + json.dumps(config) + "</script>",
-    )
-    (DIST_DIR / "explorer.html").write_text(page, encoding="utf-8")
-    print(f"export explorateur : {len(tables)} tables Parquet → dist/data/")
 
 
 def main(argv):

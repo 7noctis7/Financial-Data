@@ -24,14 +24,17 @@ class TestPayload(unittest.TestCase):
 
 
 class TestExport(unittest.TestCase):
-    def test_static_export_embeds_payload(self):
+    def test_static_export_is_kyc_aml_only(self):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(app_main, "DIST_DIR", Path(tmp)):
                 app_main.export(DATE, seed=42, n_trades=50)
-            page = (Path(tmp) / "index.html").read_text(encoding="utf-8")
-        self.assertNotIn(app_main.DATA_PLACEHOLDER, page)
-        self.assertIn('"business_date": "2026-07-09"', page)
-        self.assertIn("Financial Command Center", page)
+            produced = {p.name for p in Path(tmp).glob("*.html")}
+            index = (Path(tmp) / "index.html").read_text(encoding="utf-8")
+            aml = (Path(tmp) / "aml.html").read_text(encoding="utf-8")
+        # seules les pages KYC/AML sont publiées ; les modules archivés non
+        self.assertEqual(produced, {"index.html", "aml.html", "cases.html"})
+        self.assertIn("Financial Command Center", index)
+        self.assertIn('"business_date": "2026-07-09"', aml)  # payload AML embarqué
 
 
 if __name__ == "__main__":

@@ -3,738 +3,107 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Financial Command Center</title>
+<title>Financial Command Center — KYC / AML</title>
 <style>
   :root {
     --surface-1: #fcfcfb; --page: #f9f9f7;
     --ink-1: #0b0b0b; --ink-2: #52514e; --ink-muted: #898781;
-    --grid: #e1e0d9; --baseline: #c3c2b7;
-    --border: rgba(11,11,11,0.10);
-    --series-1: #2a78d6; --series-1-track: #cde2fb;
+    --grid: #e1e0d9; --border: rgba(11,11,11,0.10);
+    --accent: #2a78d6; --accent-wash: rgba(42,120,214,0.10);
     --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
-    --good-text: #006300;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --surface-1: #1a1a19; --page: #0d0d0d;
       --ink-1: #ffffff; --ink-2: #c3c2b7; --ink-muted: #898781;
-      --grid: #2c2c2a; --baseline: #383835;
-      --border: rgba(255,255,255,0.10);
-      --series-1: #3987e5; --series-1-track: #184f95;
-      --good-text: #0ca30c;
+      --grid: #2c2c2a; --border: rgba(255,255,255,0.10);
+      --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16);
     }
   }
   :root[data-theme="dark"] {
     --surface-1: #1a1a19; --page: #0d0d0d;
     --ink-1: #ffffff; --ink-2: #c3c2b7; --ink-muted: #898781;
-    --grid: #2c2c2a; --baseline: #383835;
-    --border: rgba(255,255,255,0.10);
-    --series-1: #3987e5; --series-1-track: #184f95;
-    --good-text: #0ca30c;
+    --grid: #2c2c2a; --border: rgba(255,255,255,0.10);
+    --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16);
   }
-  .theme-btn { cursor: pointer; background: var(--surface-1); font: inherit; font-size: 12px; font-weight: 600; }
   * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--page); color: var(--ink-1);
-    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
-  }
-  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 20px 48px; }
-  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; margin-bottom: 6px; }
-  h1 { font-size: 20px; font-weight: 650; margin: 0; }
-  .sub { color: var(--ink-2); margin: 0 0 18px; }
-  .badge {
-    display: inline-flex; align-items: center; gap: 6px;
-    border: 1px solid var(--border); border-radius: 999px;
-    padding: 3px 10px; font-size: 12px; font-weight: 600; color: var(--ink-2);
-    background: var(--surface-1);
-  }
-  .badge .dot { width: 8px; height: 8px; border-radius: 50%; }
-  #controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 18px; }
-  #controls[hidden] { display: none; }
-  #controls label { color: var(--ink-2); font-size: 12px; }
-  #controls input {
-    width: 110px; padding: 5px 8px; border: 1px solid var(--border);
-    border-radius: 8px; background: var(--surface-1); color: var(--ink-1); font: inherit;
-  }
-  #controls input[name="trades"], #controls input[name="seed"] { width: 74px; }
-  #controls button {
-    padding: 6px 14px; border: 1px solid var(--border); border-radius: 8px;
-    background: var(--series-1); color: #fff; font: inherit; font-weight: 600; cursor: pointer;
-  }
-  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
-  .tile {
-    background: var(--surface-1); border: 1px solid var(--border);
-    border-radius: 12px; padding: 14px 16px;
-  }
-  .tile .label { font-size: 12px; color: var(--ink-2); margin-bottom: 4px; }
-  .tile .value { font-size: 26px; font-weight: 600; }
-  .tile .note { font-size: 12px; color: var(--ink-muted); margin-top: 2px; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .card {
-    background: var(--surface-1); border: 1px solid var(--border);
-    border-radius: 12px; padding: 16px; position: relative; min-width: 0;
-  }
-  .card.wide { grid-column: 1 / -1; }
-  .card h2 { font-size: 14px; font-weight: 650; margin: 0 0 2px; }
-  .card .hint { font-size: 12px; color: var(--ink-muted); margin: 0 0 12px; }
-  svg { display: block; width: 100%; height: auto; }
-  .bar { fill: var(--series-1); }
-  .gridline { stroke: var(--grid); stroke-width: 1; }
-  .baseline { stroke: var(--baseline); stroke-width: 1; }
-  .tick { fill: var(--ink-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
-  .val { fill: var(--ink-2); font-size: 11px; font-weight: 600; }
-  .cat { fill: var(--ink-2); font-size: 12px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { text-align: left; color: var(--ink-muted); font-weight: 500; font-size: 12px;
-       padding: 6px 10px; border-bottom: 1px solid var(--grid); }
-  td { padding: 7px 10px; border-bottom: 1px solid var(--grid); }
-  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
-  tr:last-child td { border-bottom: none; }
-  .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; }
-  .chip .dot { width: 8px; height: 8px; border-radius: 50%; }
-  .tooltip {
-    position: fixed; pointer-events: none; z-index: 10; display: none;
-    background: var(--ink-1); color: var(--page); border-radius: 8px;
-    padding: 6px 10px; font-size: 12px; max-width: 260px;
-  }
-  .tooltip b { font-variant-numeric: tabular-nums; }
-  .clickable { cursor: pointer; }
-  tr.clickable:hover td { background: rgba(42,120,214,0.08); }
-  .bar.clickable:hover { opacity: 0.82; }
-  /* Mini-fenêtre de détail */
-  #modal-overlay {
-    position: fixed; inset: 0; z-index: 20; display: none;
-    background: rgba(0,0,0,0.35); backdrop-filter: blur(3px);
-    align-items: flex-start; justify-content: center; padding: 8vh 16px;
-  }
-  #modal-overlay.open { display: flex; }
-  #modal {
-    background: var(--surface-1); border: 1px solid var(--border);
-    border-radius: 16px; box-shadow: 0 24px 60px rgba(0,0,0,0.3);
-    max-width: 640px; width: 100%; max-height: 78vh; overflow: auto;
-    padding: 20px 22px; animation: pop .18s ease-out;
-  }
-  @keyframes pop { from { transform: scale(.97) translateY(6px); opacity: 0; } }
-  #modal h3 { margin: 0 0 2px; font-size: 16px; font-weight: 650; }
-  #modal .sub { margin: 0 0 14px; }
-  #modal-close {
-    float: right; border: none; background: none; color: var(--ink-muted);
-    font-size: 20px; cursor: pointer; line-height: 1; padding: 2px 6px; border-radius: 8px;
-  }
-  #modal-close:hover { color: var(--ink-1); background: rgba(128,128,128,0.15); }
-  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px;
-        font-size: 13px; margin-bottom: 14px; }
-  .kv dt { color: var(--ink-muted); }
-  .kv dd { margin: 0; font-variant-numeric: tabular-nums; }
-  .meter { height: 8px; border-radius: 4px; background: var(--series-1-track);
-           overflow: hidden; margin: 4px 0 12px; }
-  .meter > div { height: 100%; border-radius: 4px; background: var(--series-1); }
-  footer { margin-top: 20px; color: var(--ink-muted); font-size: 12px; }
-  footer a { color: var(--ink-2); }
-  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
-  nav a.current, a.badge.current { background: var(--accent); color: #fff !important; border-color: var(--accent); }
-
-  @media print {
-    nav, .theme-btn, button, select, .filter-bar, #tooltip, .tooltip { display: none !important; }
-    body { background: #fff !important; color: #000 !important; }
-    .card, .tile { border: 1px solid #ccc !important; break-inside: avoid; box-shadow: none !important; }
-    a { color: inherit; text-decoration: none; }
-  }
-
-  /* Couche d'animation professionnelle — sobre, désactivée si l'utilisateur
-     préfère moins de mouvement (accessibilité). */
-  @keyframes fcc-rise { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: none; } }
-  @keyframes fcc-shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
-  button, .theme-btn, nav a, select, input { transition: background .15s ease, border-color .15s ease, color .15s ease, transform .08s ease, box-shadow .15s ease; }
-  button:active, .theme-btn:active { transform: translateY(1px); }
-  @media (prefers-reduced-motion: no-preference) {
-    .card, .tile { animation: fcc-rise .42s cubic-bezier(.22,.61,.36,1) both; }
-    .tile:nth-child(2) { animation-delay: .04s; } .tile:nth-child(3) { animation-delay: .08s; }
-    .tile:nth-child(4) { animation-delay: .12s; } .tile:nth-child(5) { animation-delay: .16s; }
-    .tile:nth-child(6) { animation-delay: .20s; }
-    .tile, .card { transition: transform .18s cubic-bezier(.22,.61,.36,1), box-shadow .18s ease; }
-    .tile:hover { transform: translateY(-2px); box-shadow: 0 6px 22px rgba(0,0,0,.09); }
-    tr.clickable, .clickable { transition: background .14s ease; }
-    #modal { animation: fcc-rise .22s cubic-bezier(.22,.61,.36,1) both; }
-  }
-  .fcc-skel { background: linear-gradient(90deg, var(--grid) 25%, var(--surface-1) 50%, var(--grid) 75%);
-              background-size: 800px 100%; animation: fcc-shimmer 1.3s infinite linear;
-              border-radius: 8px; min-height: 14px; }
+  body { margin: 0; background: var(--page); color: var(--ink-1);
+         font: 14px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 40px 20px 56px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 8px; }
+  h1 { font-size: 22px; font-weight: 650; margin: 0; }
+  .theme-btn { color: var(--ink-2); font-size: 13px; font-weight: 600;
+    padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px;
+    background: var(--surface-1); cursor: pointer; font-family: inherit; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border);
+    border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 600; color: var(--ink-2); }
+  .badge .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warning); }
+  .sub { color: var(--ink-2); margin: 6px 0 26px; max-width: 660px; }
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 680px) { .cards { grid-template-columns: 1fr; } }
+  a.card { display: block; text-decoration: none; color: inherit; background: var(--surface-1);
+    border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px;
+    transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
+  a.card:hover { transform: translateY(-2px); box-shadow: 0 8px 26px rgba(0,0,0,.08);
+    border-color: var(--accent); }
+  a.card h2 { font-size: 16px; margin: 0 0 4px; }
+  a.card p { margin: 0; color: var(--ink-2); font-size: 13px; }
+  a.card .go { color: var(--accent); font-weight: 650; font-size: 13px; margin-top: 10px; display: inline-block; }
+  .note { color: var(--ink-muted); font-size: 12px; margin-top: 28px; line-height: 1.6; }
+  .note code { font-size: 11px; }
+  @media (prefers-reduced-motion: reduce) { a.card { transition: none; } }
 </style>
 </head>
 <body>
-<script id="fcc-data" type="application/json">null</script>
 <div class="wrap">
   <header>
     <h1>Financial Command Center</h1>
-    <span class="badge" id="origin-badge"></span>
-    <span class="badge" id="date-badge"></span>
+    <span class="badge"><span class="dot"></span> KYC / AML — données simulées</span>
     <span style="flex:1"></span>
-    <nav style="display:flex;gap:6px;flex-wrap:wrap"><a href="aml.html" class="badge" style="text-decoration:none">1·KYC/AML</a><a href="cases.html">Cas</a><a href="ingest.html" class="badge" style="text-decoration:none">2·Ingestion</a><a href="index.html" class="badge current" style="text-decoration:none">3·Marchés</a><a href="recon.html" class="badge" style="text-decoration:none">4·Réconciliation</a><a href="accounting.html" class="badge" style="text-decoration:none">5·Comptabilité</a><a href="explorer.html" class="badge" style="text-decoration:none">6·Explorateur</a><a href="reports.html" class="badge" style="text-decoration:none">7·Rapports</a><a href="audit.html" class="badge" style="text-decoration:none">Audit</a><a href="faq.html" class="badge" style="text-decoration:none">FAQ</a></nav>
-    <button class="badge theme-btn" id="theme" title="Basculer clair / sombre / auto"></button>
+    <button class="theme-btn" id="theme"></button>
   </header>
-  <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;margin:2px 0 14px;padding:8px 12px;border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:8px;background:var(--accent-wash)"><b style="font-size:13px">👥 Direction / Family Office (CIO)</b><span style="color:var(--ink-2);font-size:12px">— Patrimoine, performance, risques, conformité : l'état de l'établissement en une page.</span></div>
-  <p class="sub">Data Mesh bancaire — trading, trésorerie, risque, audit continu, gouvernance fédérée.</p>
-
-  <form id="controls" hidden>
-    <label>Du <input type="date" name="from" title="Début de période (optionnel) — vide = journée unique"></label>
-    <label>Au (arrêté) <input type="date" name="date" title="Date d'arrêté : positions, expositions et valorisations sont figées à cette date"></label>
-    <label>Seed <input type="number" name="seed" value="42"></label>
-    <label>Trades <input type="number" name="trades" value="250" min="1" max="20000"></label>
-    <button type="submit">Rejouer</button>
-  </form>
-
-  <div class="card wide" style="margin-bottom:16px">
-    <h2>Étude de cas — « Banque Test SA » (établissement fictif)</h2>
-    <p class="hint" style="margin-bottom:10px">
-      Le fil rouge de l'outil : une journée de marché d'une banque privée genevoise —
-      250 opérations face à 6 contreparties interbancaires, règlement sur 3 nostros
-      (EUR/USD/GBP), avec les imperfections du réel (relevés incomplets, références
-      mutilées, un client PEP). Toutes les données sont simulées, déterministes et
-      recalculables (règle G8 : aucune publication réelle possible). Suis le parcours
-      dans l'ordre du métier — chaque étape montre ses entrées, son traitement et ses sorties :</p>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;font-size:12px">
-      <a href="aml.html" style="text-decoration:none;color:inherit;border:1px solid var(--border);border-radius:10px;padding:10px 12px"><b>1 · Entrée en relation (KYC/AML)</b><br><span style="color:var(--ink-muted)">dossiers clients → notation par règles → alertes scorées, décision humaine</span></a>
-      <a href="ingest.html" style="text-decoration:none;color:inherit;border:1px solid var(--border);border-radius:10px;padding:10px 12px"><b>2 · Entrée des opérations (Ingestion)</b><br><span style="color:var(--ink-muted)">CSV externe + totaux de contrôle → mapping ontologique → batch certifiable ou refus motivé</span></a>
-      <a href="recon.html" style="text-decoration:none;color:inherit;border:1px solid var(--border);border-radius:10px;padding:10px 12px"><b>4 · Post-marché (Réconciliation)</b><br><span style="color:var(--ink-muted)">trades ↔ relevés → matching IA explicable → accepter/rejeter journalisé</span></a>
-      <a href="accounting.html" style="text-decoration:none;color:inherit;border:1px solid var(--border);border-radius:10px;padding:10px 12px"><b>5 · Clôture (Comptabilité)</b><br><span style="color:var(--ink-muted)">partie double dérivée → « le bilan boucle ✓ » → exports Bilan/PnL certifiés</span></a>
-      <a href="explorer.html" style="text-decoration:none;color:inherit;border:1px solid var(--border);border-radius:10px;padding:10px 12px"><b>6 · Investigation (Explorateur)</b><br><span style="color:var(--ink-muted)">7 tables SQL → filtres sans code ou DuckDB → export CSV</span></a>
-      <a href="reports.html" style="text-decoration:none;color:inherit;border:1px solid var(--border);border-radius:10px;padding:10px 12px"><b>7 · Restitution (Rapports)</b><br><span style="color:var(--ink-muted)">assertions ISA + contrôles bloquants → EMIR, MiFID II, FinFrag, FINREP, COREP, PnL — avec Annexe de Preuve</span></a>
-    </div>
-    <p class="hint" style="margin:10px 0 0">Étape 3 = cette page (l'activité de marché du jour, ci-dessous). Détail complet du cas et lecture par fonction de direction (CEO, CFO, CRO, CAO, CDO, CIO) : <code>docs/case-study.md</code>.</p>
+  <p class="sub">Plateforme de <b>conformité LCB-FT</b> : criblage explicable de l'activité
+    contre les dossiers clients (KYC), et file de traitement des cas sous double validation.
+    Chaque décision est journalisée dans une chaîne d'audit SHA-256.</p>
+  <div class="cards">
+    <a class="card" href="aml.html">
+      <h2>🔎 KYC / AML — Criblage</h2>
+      <p>Dossiers clients (notation par règle, PEP), alertes du jour scorées avec typologies
+        réglementaires citées. Escalade / classement sous contrôle 4 yeux (G11).</p>
+      <span class="go">Ouvrir le criblage →</span>
+    </a>
+    <a class="card" href="cases.html">
+      <h2>🗂️ Cas de conformité</h2>
+      <p>File de traitement des diligences : revues KYC échues et alertes AML, priorité SLA,
+        transitions journalisées, SAR/MROS pré-remplie et sourcée.</p>
+      <span class="go">Ouvrir la file de cas →</span>
+    </a>
   </div>
-
-  <div class="card wide" style="margin-bottom:12px">
-    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-      <b style="font-size:13px">Filtres d'analyse</b>
-      <select id="f-cpty" style="padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--page);color:var(--ink-1);font:inherit"></select>
-      <select id="f-class" style="padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--page);color:var(--ink-1);font:inherit"></select>
-      <select id="f-status" style="padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--page);color:var(--ink-1);font:inherit">
-        <option value="">Tous statuts</option><option>executed</option><option>settled</option><option>cancelled</option>
-      </select>
-      <button class="badge theme-btn" id="f-reset">Réinitialiser</button>
-      <span class="hint" id="f-info" style="margin:0"></span>
-    </div>
-  </div>
-
-  <div class="kpis" id="kpis"></div>
-
-  <div class="grid">
-    <div class="card wide">
-      <h2>Activité de trading par heure</h2>
-      <p class="hint">Nombre de trades exécutés, séance 07h–17h30 UTC</p>
-      <div id="chart-hours"></div>
-    </div>
-    <div class="card">
-      <h2>Exposition par contrepartie</h2>
-      <p class="hint">Notionnel vif valorisé en EUR — produit <code>risk:exposures</code></p>
-      <div id="chart-expo"></div>
-      <p class="hint" id="concentration-note" style="margin-top:10px"></p>
-    </div>
-    <div class="card">
-      <h2>Notionnel par classe d'actifs</h2>
-      <p class="hint">Trades non annulés, valorisés en EUR</p>
-      <div id="chart-class"></div>
-    </div>
-    <div class="card wide">
-      <h2>Valorisation mark-to-market</h2>
-      <p class="hint" id="mtm-hint">Variation de valeur du jour par instrument (close vs veille, produit
-      <code>risk:valuations</code> dérivé de <code>market:eod-prices</code>) —
-      méthode v1 : rendement du jour × notionnel vif</p>
-      <table id="mtm"></table>
-    </div>
-    <div class="card wide">
-      <h2>Surveillance SCI — indicateurs de risque (KRI)</h2>
-      <p class="hint">Seuils : docs/audit-suisse.md §2 — vert = nominal, orange = vigilance, rouge = action requise</p>
-      <div class="kpis" id="kris" style="margin-bottom:0"></div>
-    </div>
-    <div class="card wide">
-      <h2>État des Data Products</h2>
-      <p class="hint">Qualité, disjoncteurs et assertions d'audit de la journée</p>
-      <table id="products"></table>
-    </div>
-    <div class="card">
-      <h2>Comptes nostro</h2>
-      <p class="hint">Réconciliation trades ↔ relevés bancaires</p>
-      <table id="cash"></table>
-    </div>
-    <div class="card">
-      <h2>Derniers trades</h2>
-      <p class="hint">Fin de séance — produit <code>trading:executed-trades</code></p>
-      <table id="trades"></table>
-    </div>
-  </div>
-
-  <footer id="footer"></footer>
+  <p class="note">
+    Établissement fictif, données <b>simulées</b> (règle G8 : aucune publication réelle possible).
+    Version en ligne en lecture seule. Les autres modules (marchés, comptabilité, réconciliation,
+    reporting réglementaire, audit, explorateur) sont archivés en brouillon dans le dépôt
+    (<code>drafts/</code>) et pourront être réactivés. Code source :
+    <a href="https://github.com/7noctis7/Financial-Data">github.com/7noctis7/Financial-Data</a>.
+  </p>
 </div>
-<div class="tooltip" id="tooltip"></div>
-<div id="modal-overlay">
-  <div id="modal" role="dialog" aria-modal="true">
-    <button id="modal-close" title="Fermer (Échap)">×</button>
-    <h3 id="modal-title"></h3>
-    <p class="sub" id="modal-sub"></p>
-    <div id="modal-body"></div>
-  </div>
-</div>
-
 <script>
 "use strict";
-const $ = (s) => document.querySelector(s);
-
-/* Thème : auto (système) → clair → sombre, persistant entre les pages */
-const THEMES = ["auto", "light", "dark"];
-const THEME_LABELS = { auto: "◐ Auto", light: "☀ Clair", dark: "● Sombre" };
-function applyTheme(theme) {
-  if (theme === "auto") document.documentElement.removeAttribute("data-theme");
-  else document.documentElement.setAttribute("data-theme", theme);
-  const btn = $("#theme");
-  if (btn) btn.textContent = THEME_LABELS[theme];
-}
-let theme = localStorage.getItem("fcc-theme") || "auto";
-applyTheme(theme);
-addEventListener("DOMContentLoaded", () => {
-  applyTheme(theme);
-  $("#theme").onclick = () => {
-    theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
-    localStorage.setItem("fcc-theme", theme);
-    applyTheme(theme);
+(() => {
+  const THEMES = ["auto", "light", "dark"], LABELS = { auto: "◐ Auto", light: "☀ Clair", dark: "● Sombre" };
+  const apply = (t) => {
+    if (t === "auto") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", t);
+    const b = document.querySelector("#theme"); if (b) b.textContent = LABELS[t];
   };
-});
-
-const SVGNS = "http://www.w3.org/2000/svg";
-const embedded = JSON.parse($("#fcc-data").textContent);
-const LIVE = embedded === null;
-
-const fmtInt = (v) => v.toLocaleString("fr-FR");
-function fmtEur(v) {
-  const a = Math.abs(v);
-  if (a >= 1e9) return (v / 1e9).toLocaleString("fr-FR", { maximumFractionDigits: 2 }) + " Md€";
-  if (a >= 1e6) return (v / 1e6).toLocaleString("fr-FR", { maximumFractionDigits: 1 }) + " M€";
-  if (a >= 1e3) return (v / 1e3).toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " k€";
-  return v.toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " €";
-}
-const fmtMoney = (m) => m.amount.toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " " + m.currency;
-/* Dates affichées JJ/MM/AAAA (stockage ISO 8601 UTC, invariant n°2) */
-const fmtDate = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
-const fmtDateTime = (iso) => fmtDate(iso) + (iso.length > 10 ? " " + iso.slice(11, 16) : "");
-
-function el(name, attrs, text) {
-  const node = document.createElementNS(SVGNS, name);
-  for (const k in attrs) node.setAttribute(k, attrs[k]);
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
-// Barre fine : extrémité de donnée arrondie (4px), carrée à la ligne de base
-function barPath(x, y, w, h, horizontal) {
-  const r = Math.min(4, horizontal ? w : h);
-  if (horizontal)
-    return `M${x},${y} h${w - r} a${r},${r} 0 0 1 ${r},${r} v${h - 2 * r} a${r},${r} 0 0 1 -${r},${r} h-${w - r} Z`;
-  return `M${x},${y + h} v-${h - r} a${r},${r} 0 0 1 ${r},-${r} h${w - 2 * r} a${r},${r} 0 0 1 ${r},${r} v${h - r} Z`;
-}
-const tooltip = $("#tooltip");
-function hover(node, html) {
-  node.addEventListener("mousemove", (e) => {
-    tooltip.innerHTML = html;
-    tooltip.style.display = "block";
-    const tw = tooltip.offsetWidth;
-    tooltip.style.left = Math.min(e.clientX + 12, innerWidth - tw - 8) + "px";
-    tooltip.style.top = (e.clientY + 14) + "px";
+  let theme = localStorage.getItem("fcc-theme") || "auto";
+  apply(theme);
+  addEventListener("DOMContentLoaded", () => { apply(theme);
+    document.querySelector("#theme").onclick = () => {
+      theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+      localStorage.setItem("fcc-theme", theme); apply(theme); };
   });
-  node.addEventListener("mouseleave", () => { tooltip.style.display = "none"; });
-}
-function niceMax(v) {
-  const p = Math.pow(10, Math.floor(Math.log10(v || 1)));
-  for (const m of [1, 2, 2.5, 5, 10]) if (m * p >= v) return m * p;
-  return 10 * p;
-}
-
-/* ------- Mini-fenêtre de détail (clic sur un élément du dashboard) ------- */
-let DATA = null;
-function showModal(title, sub, html) {
-  $("#modal-title").textContent = title;
-  $("#modal-sub").textContent = sub || "";
-  $("#modal-body").innerHTML = html;
-  $("#modal-overlay").classList.add("open");
-}
-function closeModal() { $("#modal-overlay").classList.remove("open"); }
-addEventListener("DOMContentLoaded", () => {
-  $("#modal-close").onclick = closeModal;
-  $("#modal-overlay").onclick = (e) => { if (e.target.id === "modal-overlay") closeModal(); };
-});
-addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
-
-const kv = (pairs) => '<dl class="kv">' +
-  pairs.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("") + "</dl>";
-const miniTable = (headers, rows) =>
-  '<div style="overflow-x:auto"><table><tr>' +
-  headers.map((h) => `<th>${h}</th>`).join("") + "</tr>" +
-  rows.map((r) => "<tr>" + r.map((v, i) =>
-    `<td class="${typeof v === "string" && v.startsWith("§") ? "num" : ""}">${
-      typeof v === "string" && v.startsWith("§") ? v.slice(1) : v}</td>`).join("") +
-    "</tr>").join("") + "</table></div>";
-const classOf = (t) => DATA.instrument_classes[t.instrument_id] || t.instrument_id;
-const tradeRows = (list, max = 12) =>
-  miniTable(["Heure", "Instrument", "Contrepartie", "Notionnel", "Statut"],
-    list.slice(0, max).map((t) => [t.executed_at.slice(11, 16),
-      `<code>${t.instrument_id}</code>`,
-      DATA.counterparty_names[t.counterparty_lei] || t.counterparty_lei,
-      "§" + fmtMoney(t.notional), t.status])) +
-  (list.length > max ? `<p class="sub" style="margin-top:8px">… et ${list.length - max} autres — tout est requêtable dans l'<a href="explorer.html">explorateur</a>.</p>` : "");
-
-function hourDetail(hour) {
-  const list = DATA.trades.filter((t) => t.executed_at.slice(11, 13) + "h" === hour);
-  showModal(`Trades de ${hour}`,
-    `${list.length} exécution(s) — journée du ${fmtDate(DATA.business_date)}`,
-    tradeRows(list));
-}
-function counterpartyDetail(e) {
-  const list = DATA.trades.filter((t) => t.counterparty_lei === e.lei && t.status === "executed")
-    .sort((a, b) => b.notional.amount - a.notional.amount);
-  showModal(e.counterparty, `LEI ${e.lei}`,
-    kv([["Exposition (notionnel vif)", fmtEur(e.eur)],
-        ["Utilisation de la limite", (e.limit_utilisation * 100).toFixed(1) + " %"],
-        ["Trades vifs", fmtInt(list.length)]]) +
-    `<div class="meter"><div style="width:${Math.min(100, e.limit_utilisation * 100)}%"></div></div>` +
-    "<p class='sub'>Plus gros trades vifs :</p>" + tradeRows(list, 6));
-}
-function classDetail(label) {
-  const list = DATA.trades.filter((t) => t.status !== "cancelled" && classOf(t) === label);
-  const perInstrument = {};
-  for (const t of list) {
-    const p = perInstrument[t.instrument_id] ||= { n: 0, amount: 0, ccy: t.notional.currency };
-    p.n++; p.amount += t.notional.amount;
-  }
-  showModal(label, `${list.length} trade(s) non annulés`,
-    miniTable(["Instrument", "Trades", "Notionnel cumulé"],
-      Object.entries(perInstrument).sort((a, b) => b[1].amount - a[1].amount)
-        .map(([id, p]) => [`<code>${id}</code>`, "§" + fmtInt(p.n),
-          "§" + fmtMoney({ amount: p.amount, currency: p.ccy })])));
-}
-function productDetail(urn) {
-  const c = DATA.catalog.find((x) => x.urn === urn);
-  const p = DATA.products[urn] || {};
-  showModal(c.name, c.urn, kv([
-    ["Domaine", c.domain], ["Entité (ontologie)", `<code>${c.entity}</code>`],
-    ["Version de contrat", c.version], ["Classification", c.classification],
-    ["SLO fraîcheur", fmtInt(c.freshness_slo_seconds) + " s"],
-    ["Records du jour", fmtInt(p.records ?? 0)],
-    ["Violations de schéma", fmtInt(p.schema_violations ?? 0)],
-    ["Disjoncteur", p.breaker_state || "—"], ["Assertion d'audit", p.assertion || "—"],
-    ["Sources (lineage)", c.sources.length
-      ? c.sources.map((s) => `<code>${s.replace("urn:fcc:", "")}</code>`).join("<br>")
-      : "produit source"],
-  ]));
-}
-function tradeDetail(t) {
-  showModal(t.trade_id, classOf(t), kv([
-    ["Instrument", `<code>${t.instrument_id}</code>`],
-    ["Contrepartie", (DATA.counterparty_names[t.counterparty_lei] || "") + ` — LEI ${t.counterparty_lei}`],
-    ["Notionnel", fmtMoney(t.notional)], ["Statut", t.status],
-    ["Exécuté le (UTC)", fmtDateTime(t.executed_at)],
-    ["Référence de règlement", `STL-${t.trade_id}`],
-  ]));
-}
-function cashDetail(c) {
-  showModal(c.account_id, "Compte nostro — " + c.balance.currency, kv([
-    ["Solde", fmtMoney(c.balance)],
-    ["Date de valeur", fmtDate(c.value_date)],
-    ["Réconcilié", c.reconciled ? "oui — trades ↔ relevés complets" : "non — écart en suspens"],
-    ["Lot de règlement", `<code>${c.settlement_ref}</code>`],
-  ]));
-}
-
-function columnChart(container, rows, onClick) {
-  container.textContent = "";
-  const W = 960, H = 240, top = 12, bottom = 26, left = 40, right = 8;
-  const plotW = W - left - right, plotH = H - top - bottom;
-  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img",
-    "aria-label": "Trades exécutés par heure" });
-  const max = niceMax(Math.max(...rows.map((r) => r.count)));
-  for (let i = 0; i <= 4; i++) {
-    const y = top + plotH - (plotH * i) / 4;
-    if (i > 0) svg.appendChild(el("line", { class: "gridline", x1: left, x2: W - right, y1: y, y2: y }));
-    svg.appendChild(el("text", { class: "tick", x: left - 6, y: y + 4, "text-anchor": "end" },
-      fmtInt(Math.round((max * i) / 4))));
-  }
-  svg.appendChild(el("line", { class: "baseline", x1: left, x2: W - right, y1: top + plotH, y2: top + plotH }));
-  const band = plotW / rows.length, bw = Math.min(24, band * 0.55);
-  const peak = rows.reduce((a, b) => (b.count > a.count ? b : a), rows[0]);
-  rows.forEach((row, i) => {
-    const h = (row.count / max) * plotH;
-    const x = left + band * i + (band - bw) / 2;
-    const bar = el("path", { class: "bar clickable", d: barPath(x, top + plotH - h, bw, h, false) });
-    hover(bar, `${row.hour} — <b>${fmtInt(row.count)}</b> trades<br><span style="opacity:.7">cliquer pour le détail</span>`);
-    if (onClick) bar.addEventListener("click", () => onClick(row));
-    svg.appendChild(bar);
-    if (row === peak)
-      svg.appendChild(el("text", { class: "val", x: x + bw / 2, y: top + plotH - h - 6,
-        "text-anchor": "middle" }, fmtInt(row.count)));
-    svg.appendChild(el("text", { class: "tick", x: left + band * i + band / 2,
-      y: H - 8, "text-anchor": "middle" }, row.hour));
-  });
-  container.appendChild(svg);
-}
-
-function hbarChart(container, rows, opts) {
-  container.textContent = "";
-  const W = 480, rowH = 34, left = 4, right = 78, labelH = 16;
-  const H = rows.length * rowH + 6;
-  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": opts.aria });
-  const max = Math.max(...rows.map((r) => r.value));
-  rows.forEach((row, i) => {
-    const y = i * rowH;
-    const w = Math.max(6, (row.value / max) * (W - left - right));
-    svg.appendChild(el("text", { class: "cat", x: left, y: y + labelH - 3 }, row.label));
-    const bar = el("path", { class: "bar clickable", d: barPath(left, y + labelH, w, 12, true) });
-    hover(bar, row.tip + '<br><span style="opacity:.7">cliquer pour le détail</span>');
-    if (row.onClick) bar.addEventListener("click", row.onClick);
-    svg.appendChild(bar);
-    svg.appendChild(el("text", { class: "val", x: left + w + 8, y: y + labelH + 10 },
-      fmtEur(row.value)));
-  });
-  container.appendChild(svg);
-}
-
-const STATUS = {
-  good: { color: "var(--good)", icon: "✓" },
-  warning: { color: "var(--warning)", icon: "⚠" },
-  critical: { color: "var(--critical)", icon: "✕" },
-};
-function chip(kind, label) {
-  const s = STATUS[kind];
-  return `<span class="chip"><span class="dot" style="background:${s.color}"></span>${s.icon} ${label}</span>`;
-}
-
-function tile(label, value, note) {
-  return `<div class="tile"><div class="label">${label}</div><div class="value">${value}</div>${note ? `<div class="note">${note}</div>` : ""}</div>`;
-}
-
-function renderKpis(data, trades) {
-  const fx = data.fx_to_eur || { EUR: 1 };
-  const eur = (m) => m.amount * (fx[m.currency] || 1);
-  const live = trades.filter((t2) => t2.status !== "cancelled");
-  const k = data.kpis;
-  const scoped = trades.length !== data.trades.length;
-  // Comparatif N / N-1 : même période (ou même date) de l'exercice précédent
-  // — convention comptable 01.01.N ↔ 01.01.N-1, jamais la veille.
-  const cmp = data.comparison;
-  const isPeriod = cmp && cmp.period.from !== cmp.period.to;
-  const pct = (v) => v && v.pct !== null && v.pct !== undefined
-    ? `${v.pct >= 0 ? "+" : ""}${(v.pct * 100).toFixed(1)} % vs N-1` : "N-1 : n/d";
-  const periodLabel = isPeriod
-    ? `du ${fmtDate(cmp.period.from)} au ${fmtDate(cmp.period.to)}` : "";
-  $("#kpis").innerHTML =
-    tile(scoped ? "Trades (périmètre filtré)"
-                : (isPeriod ? "Trades (période)" : "Trades du jour"),
-         fmtInt(scoped ? trades.length : (isPeriod ? cmp.current.trades : trades.length)),
-         scoped ? `sur ${fmtInt(data.trades.length)}`
-                : (isPeriod ? periodLabel
-                            : `${pct(cmp && cmp.variation.trades)} (${fmtDate(cmp.prev_period.to)})`)) +
-    tile("Notionnel" + (scoped ? " (périmètre)" : (isPeriod ? " (période)" : " traité")),
-         fmtEur(scoped ? live.reduce((s, t2) => s + eur(t2.notional), 0)
-                       : (isPeriod ? cmp.current.notional_eur
-                                   : live.reduce((s, t2) => s + eur(t2.notional), 0))),
-         (!scoped && cmp) ? `${pct(cmp.variation.notional_eur)} (même ${isPeriod ? "période" : "date"} exercice préc.)`
-                          : "hors annulations") +
-    (!scoped && cmp
-      ? tile("CA commissions" + (isPeriod ? " (période)" : ""),
-             fmtEur(cmp.current.fees_eur),
-             `${pct(cmp.variation.fees_eur)} — N-1 : ${fmtEur(cmp.previous.fees_eur)}`)
-      : "") +
-    tile("Exposition totale", fmtEur(k.exposure_eur),
-         `notionnel vif, EUR — arrêté au ${fmtDate(data.business_date)}`) +
-    tile("Comptes réconciliés", `${k.reconciled_accounts}/${k.accounts}`,
-      k.reconciled_accounts === k.accounts ? "trades ↔ relevés : complet" : "écarts en suspens") +
-    tile("Chaîne d'audit", k.audit_chain_intact ? "Intègre" : "CORROMPUE", "journal chaîné SHA-256");
-}
-
-function setupFilters(data) {
-  const cptySel = $("#f-cpty"), classSel = $("#f-class");
-  if (cptySel.options.length) return;
-  cptySel.innerHTML = '<option value="">Toutes contreparties</option>' +
-    Object.entries(data.counterparty_names).map(([lei, n]) => `<option value="${lei}">${n}</option>`).join("");
-  const classes = [...new Set(Object.values(data.instrument_classes))];
-  classSel.innerHTML = '<option value="">Toutes classes</option>' +
-    classes.map((c) => `<option>${c}</option>`).join("");
-  const apply = () => {
-    const f = { cpty: cptySel.value, cls: classSel.value, status: $("#f-status").value };
-    const filtered = data.trades.filter((t2) =>
-      (!f.cpty || t2.counterparty_lei === f.cpty) &&
-      (!f.cls || classOf(t2) === f.cls) &&
-      (!f.status || t2.status === f.status));
-    $("#f-info").textContent = (f.cpty || f.cls || f.status)
-      ? `${filtered.length}/${data.trades.length} trades dans le périmètre` : "";
-    renderKpis(data, filtered);
-    renderCharts(data, filtered);
-  };
-  cptySel.onchange = classSel.onchange = $("#f-status").onchange = apply;
-  $("#f-reset").onclick = () => {
-    cptySel.value = classSel.value = $("#f-status").value = ""; apply();
-  };
-}
-
-function renderCharts(data, trades) {
-  const fx = data.fx_to_eur || { EUR: 1 };
-  const eur = (m) => m.amount * (fx[m.currency] || 1);
-  const byHour = {};
-  for (const t2 of trades) { const h = t2.executed_at.slice(11, 13) + "h"; byHour[h] = (byHour[h] || 0) + 1; }
-  columnChart($("#chart-hours"),
-    data.trades_by_hour.map((r) => ({ hour: r.hour, count: byHour[r.hour] || 0 })),
-    (row) => hourDetail(row.hour));
-  const byCpty = {};
-  for (const t2 of trades) if (t2.status === "executed")
-    byCpty[t2.counterparty_lei] = (byCpty[t2.counterparty_lei] || 0) + eur(t2.notional);
-  const expoIndex = Object.fromEntries(data.exposures.map((e) => [e.lei, e]));
-  hbarChart($("#chart-expo"), Object.entries(byCpty)
-    .sort((a, b) => b[1] - a[1])
-    .map(([lei, v]) => ({
-      label: data.counterparty_names[lei] || lei, value: Math.round(v * 100) / 100,
-      tip: `${data.counterparty_names[lei] || lei}<br>LEI ${lei}<br><b>${fmtEur(v)}</b> (périmètre filtré)`,
-      onClick: () => expoIndex[lei] && counterpartyDetail(expoIndex[lei]),
-    })), { aria: "Exposition par contrepartie en euros" });
-  const c = data.concentration;
-  if (c) {
-    const lvl = c.hhi >= 0.25 ? ["var(--critical)", "concentré"]
-      : c.hhi >= 0.15 ? ["var(--warning)", "modéré"] : ["var(--good)", "diversifié"];
-    $("#concentration-note").innerHTML =
-      `<b>Concentration</b> (dérivée, ${c.counterparties} contreparties) — indice HHI `
-      + `<b style="color:${lvl[0]}">${c.hhi.toFixed(4)}</b> (${lvl[1]}) · `
-      + `1ʳᵉ contrepartie ${(c.top1_share * 100).toFixed(1)} % · `
-      + `top 3 ${(c.top3_share * 100).toFixed(1)} %. `
-      + `<span style="color:var(--ink-muted)">HHI = Σ des carrés des parts (seuils indicatifs 0,15 / 0,25).</span>`;
-  }
-  const byClass = {};
-  for (const t2 of trades) if (t2.status !== "cancelled")
-    byClass[classOf(t2)] = (byClass[classOf(t2)] || 0) + eur(t2.notional);
-  hbarChart($("#chart-class"), Object.entries(byClass)
-    .sort((a, b) => b[1] - a[1])
-    .map(([label, v]) => ({
-      label, value: Math.round(v * 100) / 100,
-      tip: `${label}<br><b>${fmtEur(v)}</b>`,
-      onClick: () => classDetail(label),
-    })), { aria: "Notionnel par classe d'actifs en euros" });
-}
-
-function render(data) {
-  DATA = data;
-  const simulated = data.origin !== "production";
-  $("#origin-badge").innerHTML =
-    `<span class="dot" style="background:${simulated ? "var(--warning)" : "var(--good)"}"></span>` +
-    (simulated ? "⚠ Données simulées — G8 : publication bloquée" : "✓ Données de production");
-  $("#date-badge").textContent = "Journée du " + fmtDate(data.business_date);
-
-  renderKpis(data, data.trades);
-
-  if (data.valuations) {
-    const pct = (r) => (r * 100).toFixed(2).replace(".", ",") + " %";
-    const signed = (v) => `<span style="color:${v < 0 ? "var(--critical)" : "var(--good-text)"}">${
-      v >= 0 ? "+" : ""}${fmtEur(v)}</span>`;
-    $("#mtm").innerHTML =
-      "<tr><th>Instrument</th><th>Classe</th><th class='num'>Notionnel vif</th><th class='num'>Clôture</th><th>Source du cours</th><th class='num'>Rendement du jour</th><th class='num'>MtM du jour</th></tr>" +
-      data.valuations.map((v) => `<tr>
-        <td><code>${v.instrument_id}</code></td><td>${v.asset_class}</td>
-        <td class="num">${fmtEur(v.position_eur)}</td>
-        <td class="num">${v.close.amount.toLocaleString("fr-FR")} ${v.close.currency}</td>
-        <td>${v.price_source || "—"}</td>
-        <td class="num">${pct(v.daily_return)}</td>
-        <td class="num">${signed(v.mtm_eur)}</td></tr>`).join("") +
-      `<tr><td colspan="6" style="font-weight:650">Total portefeuille</td>
-        <td class="num" style="font-weight:650">${signed(data.mtm_total_eur)}</td></tr>`;
-    if (data.market_note) {
-      $("#mtm-hint").innerHTML += `<br><b>${data.market_origin === "production" ? "✓" : "⚠"}</b> ${data.market_note}`;
-    }
-  }
-
-  if (data.kris) {
-    const k2 = data.kris;
-    const kri = (label, value, level, note) =>
-      `<div class="tile"><div class="label">${label}</div><div class="value" style="color:${
-        level === 2 ? "var(--critical)" : level === 1 ? "var(--warning)" : "var(--good-text)"}">${value}</div>${
-        note ? `<div class="note">${note}</div>` : ""}</div>`;
-    const util = k2.max_limit_utilisation;
-    $("#kris").innerHTML =
-      kri("Utilisation max. de limite", (util * 100).toFixed(1) + " %",
-          util > 0.9 ? 2 : util > 0.75 ? 1 : 0, "seuils 75 % / 90 %") +
-      kri("Comptes non réconciliés", k2.unreconciled_accounts,
-          k2.unreconciled_accounts > 0 ? 1 : 0, "écarts trades ↔ relevés") +
-      kri("Compte d'attente", k2.suspense_eur ? fmtEur(k2.suspense_eur) : "0",
-          k2.suspense_eur > 0 ? 2 : 0, "flux inexpliqués (9990)") +
-      kri("Le bilan boucle", k2.balanced ? "✓" : "✕", k2.balanced ? 0 : 2, "débits = crédits") +
-      kri("Violations de schéma", k2.schema_violations, k2.schema_violations > 0 ? 1 : 0, "qualité des produits") +
-      kri("Assertions non certifiées", k2.qualified_assertions,
-          k2.qualified_assertions > 0 ? 1 : 0, "audit continu");
-  }
-  setupFilters(data);
-  renderCharts(data, data.trades);
-
-  $("#products").innerHTML =
-    "<tr><th>Data Product</th><th class='num'>Records</th><th class='num'>Violations schéma</th><th>Disjoncteur</th><th>Assertion d'audit</th></tr>" +
-    Object.entries(data.products).map(([urn, p]) => `<tr class="clickable" data-urn="${urn}">
-      <td><code>${urn.replace("urn:fcc:", "")}</code></td>
-      <td class="num">${fmtInt(p.records)}</td>
-      <td class="num">${fmtInt(p.schema_violations)}</td>
-      <td>${p.breaker_state === "closed" ? chip("good", "fermé (nominal)") : chip("critical", p.breaker_state)}</td>
-      <td>${p.assertion === "certified" ? chip("good", "certified") : chip("warning", p.assertion)}</td>
-    </tr>`).join("");
-
-  $("#cash").innerHTML =
-    "<tr><th>Compte</th><th class='num'>Solde</th><th>Réconcilié</th></tr>" +
-    data.cash.map((c, i) => `<tr class="clickable" data-i="${i}">
-      <td>${c.account_id}</td>
-      <td class="num">${fmtMoney(c.balance)}</td>
-      <td>${c.reconciled ? chip("good", "oui") : chip("warning", "écart")}</td>
-    </tr>`).join("");
-
-  $("#trades").innerHTML =
-    "<tr><th>Trade</th><th>Instrument</th><th class='num'>Notionnel</th><th>Statut</th></tr>" +
-    data.recent_trades.map((t, i) => `<tr class="clickable" data-i="${i}">
-      <td>${t.executed_at.slice(11, 16)}</td>
-      <td><code>${t.instrument_id}</code></td>
-      <td class="num">${fmtMoney(t.notional)}</td>
-      <td>${t.status}</td>
-    </tr>`).join("");
-
-  document.querySelectorAll("#products tr.clickable").forEach((tr) =>
-    tr.addEventListener("click", () => productDetail(tr.dataset.urn)));
-  document.querySelectorAll("#cash tr.clickable").forEach((tr) =>
-    tr.addEventListener("click", () => cashDetail(data.cash[tr.dataset.i])));
-  document.querySelectorAll("#trades tr.clickable").forEach((tr) =>
-    tr.addEventListener("click", () => tradeDetail(data.recent_trades[tr.dataset.i])));
-
-  $("#footer").innerHTML =
-    `${data.g8_refusals.length} publication(s) réglementaire(s) refusée(s) par la règle G8 (provenance ${data.origin}) — ` +
-    `${data.filings.filter((f) => f.dry_run).length} dry-run marqué(s) DRYRUN. ` +
-    `Catalogue : ${data.catalog.length} Data Products. ` +
-    (data.audit_anchor ? `Ancre d'audit publique du jour : <code>${data.audit_anchor.slice(0, 20)}…</code> (tête de la chaîne SHA-256 — publiée avec ce site, donc infalsifiable rétroactivement). ` : "") +
-    `<a href="https://github.com/7noctis7/Financial-Data">Code source</a>`;
-}
-
-async function load(params) {
-  const q = new URLSearchParams(params).toString();
-  const res = await fetch("/api/summary" + (q ? "?" + q : ""));
-  if (!res.ok) throw new Error(await res.text());
-  render(await res.json());
-}
-
-if (LIVE) {
-  const form = $("#controls");
-  form.hidden = false;
-  form.date.value = new Date().toISOString().slice(0, 10);
-  form.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const params = { date: form.date.value, seed: form.seed.value, trades: form.trades.value };
-    if (form.from.value) {
-      if (form.from.value > form.date.value) {
-        window.alert("Période invalide : « Du » doit précéder « Au (arrêté) »."); return;
-      }
-      params.from = form.from.value;  // période [du..au] — flux agrégés, comparés à N-1
-    }
-    load(params);
-  });
-  load({});
-} else {
-  render(embedded);
-}
+})();
 </script>
 </body>
 </html>
