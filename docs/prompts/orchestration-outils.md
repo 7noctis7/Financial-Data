@@ -76,6 +76,43 @@ n'importe quel projet. Copie tout le bloc ci-dessous.
 > | Raisonnement/exécution agentique | **Claude** | écrit dans GitHub/Notion via MCP |
 > | Ingestion massive / multimodale / recherche | **Gemini** | restitue une synthèse citée à Claude |
 >
+> **Principe imposé n°2 — l'excellence architecturale, en permanence.** Chaque
+> projet doit maintenir une architecture *maîtrisée de bout en bout*, jamais
+> subie. Standards non négociables : séparation stricte des responsabilités
+> (une couche = une raison de changer) ; frontières explicites (une couche
+> anti-corruption à chaque entrée externe, le dialecte du fournisseur ne
+> franchit jamais le cœur) ; dépendances minimales et orientées vers le stable ;
+> contrats versionnés entre modules ; invariants exprimés *en code* et testés,
+> pas dans des conventions humaines ; documentation d'architecture vivante
+> (`docs/`) tenue à jour dans le même commit que le code. Toute décision
+> structurante s'écrit en **ADR** (contexte / options / choix / conséquences).
+> Règle de lisibilité : `< 400 lignes/fichier`, `< 50 lignes/fonction`, un nom
+> qui dit l'intention. La dette technique se déclare et se planifie ; elle ne
+> se cache pas. Test : un nouvel agent doit pouvoir recharger le modèle mental
+> du système en lisant seulement `README` + `docs/` + les contrats.
+>
+> **Principe imposé n°3 — l'efficience absolue des tokens et des agents.** Le
+> budget de tokens est une ressource à optimiser à chaque tâche, jamais à
+> gaspiller. Impose, pour chaque tâche confiée à un agent IA :
+> - **Lire avant de générer** — auditer l'existant (grep, lecture ciblée) évite
+>   de régénérer ce qui existe déjà : la moitié des demandes sont déjà faites.
+> - **Le bon outil au bon coût** — Gemini pour avaler un gros corpus une fois et
+>   en rendre une synthèse *courte et citée* ; Claude raisonne et agit sur cette
+>   synthèse, pas sur le corpus brut ; on ne recharge pas un contexte massif à
+>   chaque tour.
+> - **Contexte ciblé, pas exhaustif** — ne charger que les fichiers/sections
+>   nécessaires ; préférer un lien vers la source unique à une recopie ;
+>   s'appuyer sur la mémoire externe (Notion/`docs/`) plutôt que ré-expliquer.
+> - **Découpe en tranches vérifiables** — une tâche = un incrément prouvable ;
+>   on ne relance pas un raisonnement long sur une cible floue (tokens brûlés
+>   pour rien).
+> - **Sorties structurées et réutilisables** — un résultat (schéma, ADR, table)
+>   écrit une fois dans la source canonique sert tous les agents suivants sans
+>   le recalculer.
+> - **Mesurer** — donner un ordre de grandeur du coût (tokens/appels) d'une
+>   approche avant de la lancer, et préférer la moins coûteuse à valeur égale.
+> Objectif : **valeur maximale par token**, jamais le token dépensé par confort.
+>
 > **Livrables attendus, dans cet ordre :**
 >
 > 1. **Cartographie des flux** — pour chaque paire d'outils qui échange, dis
@@ -133,15 +170,39 @@ n'importe quel projet. Copie tout le bloc ci-dessous.
 >    (cochage + journal), en montrant les cinq outils à l'œuvre au bon moment,
 >    et en visant la **vitesse de boucle** minimale (regard Musk).
 >
-> 8. **Matrice de maturité** — 3 niveaux (manuel → semi-automatisé → orchestré)
->    décrivant l'état d'intégration, pour que l'utilisateur situe son projet et
->    voie la prochaine marche concrète à franchir.
+> 8. **Gouvernance de l'architecture** — comment garder l'architecture excellente
+>    dans la durée, pas seulement au départ : où vivent les ADR (Notion) et le
+>    schéma d'architecture vivant (`docs/`) ; quels invariants sont vérifiés *en
+>    code/CI* (contrats, lint, tests de frontière) plutôt que par discipline ;
+>    comment la dette est déclarée et priorisée ; le seuil de découpage
+>    (`< 400 lignes/fichier`, `< 50 lignes/fonction`) ; et le test du nouvel
+>    arrivant : recharger le modèle mental via `README` + `docs/` + contrats.
 >
-> **Triple veto final.** Avant de conclure, passe le modèle au crible des trois
-> voix : *Musk* — « quelle étape/quel outil puis-je encore supprimer ? » ;
+> 9. **Playbook d'efficience des tokens et des agents** — le protocole concret
+>    pour tirer la valeur maximale de chaque token dépensé :
+>    | Levier | Règle | Effet |
+>    |---|---|---|
+>    | Lire avant de générer | auditer l'existant d'abord | ne pas régénérer le déjà-fait |
+>    | Bon modèle, bon coût | Gemini avale le corpus → synthèse courte citée ; Claude agit dessus | pas de gros contexte rechargé à chaque tour |
+>    | Contexte ciblé | charger sections utiles + liens vers la source unique | moins de tokens d'entrée |
+>    | Tranches vérifiables | 1 tâche = 1 incrément prouvable | pas de raisonnement long sur cible floue |
+>    | Sorties réutilisables | écrire une fois dans la source canonique | tout agent suivant réutilise sans recalcul |
+>    | Mesurer d'abord | estimer coût (tokens/appels) avant de lancer | choisir la voie la moins chère à valeur égale |
+>    Donne aussi la règle d'arbitrage : *à valeur égale, l'approche la moins
+>    coûteuse gagne ; à coût égal, la plus vérifiable gagne.*
+>
+> 10. **Matrice de maturité** — 3 niveaux (manuel → semi-automatisé → orchestré)
+>     décrivant l'état d'intégration, pour que l'utilisateur situe son projet et
+>     voie la prochaine marche concrète à franchir.
+>
+> **Quintuple veto final.** Avant de conclure, passe le modèle au crible :
+> *Musk* — « quelle étape/quel outil/quel token puis-je encore supprimer ? » ;
 > *Jobs* — « où l'utilisateur sent-il encore la couture ou le jargon ? » ;
 > *Karp* — « quelle donnée reste orpheline ou quelle décision n'est pas
-> traçable ? ». Corrige jusqu'à ce que les trois vetos tombent.
+> traçable ? » ; *Architecte* — « quel invariant repose sur la discipline
+> humaine au lieu du code ? » ; *FinOps des tokens* — « quel appel IA dépense
+> plus qu'il ne crée de valeur ? ». Corrige jusqu'à ce que les cinq vetos
+> tombent.
 >
 > **Format.** Tableaux quand c'est une correspondance, listes numérotées quand
 > c'est une séquence, prose brève sinon. Termine par **la seule règle à retenir
@@ -176,3 +237,12 @@ Les trois voix invitées cadrent déjà des choix du projet :
   une entité réelle ; le journal chaîné et l'Annexe de Preuve rendent chaque
   chiffre investigable et opposable ; l'IA propose, l'humain tranche sous
   contrôle 4 yeux (G11), toujours journalisé.
+- **Excellence architecturale** — séparation plateforme (`mesh/`) / présentation
+  (`app/`) ; couche anti-corruption à chaque entrée externe (connecteurs FIX,
+  camt.053, Yahoo) ; contrats versionnés (`domains/*/product.json`) ; invariants
+  en code (registre qui rejette un terme hors ontologie, contrôles de
+  restitution bloquants) ; dette suivie dans `docs/revue-architecture.md`.
+- **Efficience des tokens** — un payload unique sert serveur et export ; le cache
+  `/api/summary` évite de rejouer le pipeline ; Gemini résume les gros corpus
+  réglementaires une fois, Claude agit sur la synthèse ; la mémoire externe
+  (Notion + `docs/`) évite de ré-expliquer le contexte à chaque session.
