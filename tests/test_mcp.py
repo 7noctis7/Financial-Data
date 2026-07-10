@@ -4,7 +4,6 @@ import sys
 import unittest
 
 from connectors import mcp_server
-from mesh import iam
 
 
 def _rpc(method, params=None, msg_id=1):

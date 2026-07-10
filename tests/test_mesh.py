@@ -1,13 +1,12 @@
 import copy
 import json
 import unittest
-from pathlib import Path
 
 from mesh import audit, schema
 from mesh.circuit_breaker import CLOSED, HALF_OPEN, OPEN, CircuitBreaker
 from mesh.lineage import Lineage, LineageError
 from mesh.registry import CONTRACT_SCHEMA_PATH, Registry, load_ontology_terms, validate_contract
-from mesh.sources import PRODUCTION, SIMULATED
+from mesh.sources import PRODUCTION
 
 REGISTRY = Registry()
 CONTRACT_SCHEMA = json.loads(CONTRACT_SCHEMA_PATH.read_text(encoding="utf-8"))

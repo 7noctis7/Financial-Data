@@ -47,7 +47,7 @@ class TestGeneralLedger(unittest.TestCase):
         for line in ledger["records"]:
             by_entry.setdefault(line["entry_id"], []).append(line)
         for lines in by_entry.values():
-            self.assertEqual({l["side"] for l in lines}, {"debit", "credit"})
+            self.assertEqual({ln["side"] for ln in lines}, {"debit", "credit"})
             self.assertEqual(lines[0]["amount"], lines[1]["amount"])
 
 

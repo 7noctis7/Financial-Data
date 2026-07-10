@@ -113,7 +113,7 @@ class TestPersistentAuditLog(unittest.TestCase):
             log.append("ops@fcc", "a", "urn:fcc:audit:journal", {"k": 1}, "2026-07-09T10:00:00Z")
             log.append("ops@fcc", "b", "urn:fcc:audit:journal", {"k": 2}, "2026-07-09T10:01:00Z")
             self.assertIsNone(log.verify_chain())  # mémoïse l'état sain
-            entries = [json.loads(l) for l in
+            entries = [json.loads(ln) for ln in
                        path.read_text(encoding="utf-8").strip().splitlines()]
             entries[0]["details"]["k"] = 999
             path.write_text("\n".join(json.dumps(e, ensure_ascii=False)
@@ -129,7 +129,7 @@ class TestPersistentAuditLog(unittest.TestCase):
                        {"k": 1}, "2026-07-09T10:00:00Z")
             log.append("ops@fcc", "test.second", "urn:fcc:audit:journal",
                        {"k": 2}, "2026-07-09T10:01:00Z")
-            entries = [json.loads(l) for l in
+            entries = [json.loads(ln) for ln in
                        path.read_text(encoding="utf-8").strip().splitlines()]
             entries[0]["details"]["k"] = 999  # falsification a posteriori
             path.write_text("\n".join(json.dumps(e, ensure_ascii=False)
