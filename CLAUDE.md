@@ -37,6 +37,9 @@ ne réexplique rien, il **pointe** vers la source unique de chaque règle.
   GitHub + Obsidian (comité 7 voix, règle de la source unique, veto quintuple).
 - `docs/prompts/expert-ir.md`, `docs/prompts/expert-accounting.md` — agents
   experts métier.
+- `docs/prompts/revue-qualite-rapports.md` — revue qualité de chaque rapport
+  (pertinence, complétude, exactitude, langue, design, traçabilité) puis
+  correction, au standard d'une banque de premier rang.
 
 ## En fin de session (clôture — fait partie de la tâche)
 
