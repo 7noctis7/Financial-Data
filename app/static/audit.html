@@ -92,6 +92,8 @@
     <p class="hint" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       Dernières entrées (les plus récentes en premier) — filtrer :
       <select id="f-action"><option value="">toutes les actions</option></select>
+      <input id="f-text" type="search" placeholder="acteur, sujet, empreinte…"
+             style="padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--page);color:var(--ink-1);font:inherit">
     </p>
     <table id="journal"></table>
   </div>
@@ -124,8 +126,10 @@ const config = JSON.parse($("#fcc-audit-config").textContent);
 const tile = (label, value, cls) =>
   `<div class="tile"><div class="label">${label}</div><div class="value ${cls || ""}">${value}</div></div>`;
 
-function renderJournal(entries, filter) {
-  const rows = entries.filter((e) => !filter || e.action === filter);
+function renderJournal(entries, filter, text) {
+  const needle = (text || "").toLowerCase();
+  const rows = entries.filter((e) => (!filter || e.action === filter)
+    && (!needle || [e.actor, e.subject_urn, e.hash, e.timestamp].join(" ").toLowerCase().includes(needle)));
   $("#journal").innerHTML =
     "<tr><th>#</th><th>Horodatage</th><th>Acteur</th><th>Action</th><th>Sujet</th><th>Empreinte</th></tr>" +
     (rows.length ? rows.map((e) => `<tr>
@@ -146,8 +150,10 @@ function render(data) {
   const actions = [...new Set(data.entries.map((e) => e.action))].sort();
   $("#f-action").innerHTML = '<option value="">toutes les actions</option>' +
     actions.map((a) => `<option>${a}</option>`).join("");
-  $("#f-action").onchange = () => renderJournal(data.entries, $("#f-action").value);
-  renderJournal(data.entries, "");
+  const refresh = () => renderJournal(data.entries, $("#f-action").value, $("#f-text").value);
+  $("#f-action").onchange = refresh;
+  $("#f-text").oninput = refresh;
+  renderJournal(data.entries, "", "");
   $("#dictionary").innerHTML = data.dictionary.map((d) => `
     <h2 style="margin-top:14px"><code>${d.urn.replace("urn:fcc:", "")}</code>
       <span class="chip">${d.classification}</span>

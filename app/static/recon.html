@@ -97,6 +97,12 @@
   feedback qui calibre les scores suivants.</p>
   <div class="kpis" id="kpis"></div>
   <div class="card">
+    <p class="hint" id="bulk-bar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap" hidden>
+      Traitement en masse (une décision humaine, journalisée ligne à ligne) :
+      <select id="bulk-threshold"><option value="0.95">score ≥ 95 %</option>
+        <option value="0.90">score ≥ 90 %</option><option value="0.80">score ≥ 80 %</option></select>
+      <button class="theme-btn" id="bulk-accept" style="font-size:12px">✓ Accepter tout au-dessus du seuil</button>
+      <span id="bulk-note"></span></p>
     <table id="grid"><tr><th>Trade sans relevé</th><th>Relevé orphelin</th><th style="width:180px">Score</th><th>Pourquoi</th><th></th></tr></table>
     <p class="note" id="note"></p>
   </div>
@@ -141,6 +147,8 @@ function render(data) {
     tile("Suggestions IA", data.suggestions.length) +
     tile("Décisions apprises", `<span id="fb">${data.feedback_entries}</span>`);
   const grid = $("#grid");
+  const pending = [];  // [row, suggestion] non encore décidés, pour le traitement en masse
+  data.suggestions.sort((a, b) => b.score - a.score);
   for (const s of data.suggestions) {
     const row = grid.insertRow();
     row.innerHTML = `
@@ -155,7 +163,19 @@ function render(data) {
     if (!STATIC) {
       row.querySelector(".yes").onclick = () => decideRow(row, s, true);
       row.querySelector(".no").onclick = () => decideRow(row, s, false);
+      pending.push([row, s]);
     }
+  }
+  if (!STATIC && data.suggestions.length) {
+    $("#bulk-bar").hidden = false;
+    $("#bulk-accept").onclick = async () => {
+      const threshold = Number($("#bulk-threshold").value);
+      const eligible = pending.filter(([row, s]) => s.score >= threshold && row.querySelector(".yes"));
+      $("#bulk-note").textContent = eligible.length
+        ? `${eligible.length} rapprochement(s) en cours…` : "aucune suggestion au-dessus du seuil";
+      for (const [row, s] of eligible) await decideRow(row, s, true);
+      if (eligible.length) $("#bulk-note").textContent = `${eligible.length} accepté(s) — chacun journalisé`;
+    };
   }
   $("#note").innerHTML = (STATIC
     ? "Version en ligne : lecture seule. En local (<code>python3 -m app</code>), chaque décision est journalisée et apprise. "
