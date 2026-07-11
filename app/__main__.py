@@ -117,6 +117,35 @@ def _aml_four_eyes(body):
             "audit_chain_intact": _AUDIT.verify_chain() is None}
 
 
+_SUPPRESSED_PATH = REPO_ROOT / "data" / "screening-suppressed.jsonl"
+
+
+def _screening_suppressed():
+    """Faux positifs résolus : supprimés tant que la liste garde sa version."""
+    if not _SUPPRESSED_PATH.exists():
+        return set()
+    entries = set()
+    for line in _SUPPRESSED_PATH.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            entries.add(tuple(json.loads(line)))
+    return entries
+
+
+def _screening_resolve(body):
+    """Résolution d'un hit de criblage : journalisée ; faux positif persisté."""
+    from mesh.watchlist import resolve_hit
+    hit, actor = body["hit"], body.get("actor", "webapp")
+    key = resolve_hit(hit, true_match=bool(body["true_match"]), actor=actor,
+                      audit_log=_AUDIT, timestamp=body.get("timestamp", ""))
+    if key is not None:
+        _SUPPRESSED_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with _SUPPRESSED_PATH.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(list(key), ensure_ascii=False) + "\n")
+    return {"ok": True, "true_match": bool(body["true_match"]),
+            "suppressed": key is not None,
+            "audit_chain_intact": _AUDIT.verify_chain() is None}
+
+
 def _aml_feedback():
     from mesh.aml import AML_FEATURES
     return FeedbackStore(REPO_ROOT / "data" / "feedback-aml.jsonl",
@@ -130,9 +159,13 @@ def _aml_payload(date, seed=42, n_trades=250):
     kyc = SimulatedClientSource(seed=seed).fetch(date)
     prediction = screen(trades, kyc, Lineage(_REGISTRY), feedback=_aml_feedback())
     profiles = kyc["records"]
+    from mesh.watchlist import WATCHLIST_VERSION, screen_profiles
+    hits = screen_profiles(kyc, date, suppressed=_screening_suppressed())
     return {
         "business_date": date, "seed": seed,
         "profiles": profiles,
+        "screening": {"hits": hits, "list_version": WATCHLIST_VERSION,
+                      "suppressed_count": sum(1 for h in hits if h["suppressed"])},
         "pep_count": sum(1 for p in profiles if p["pep"]),
         "high_risk_count": sum(1 for p in profiles if p["risk_rating"] == "high"),
         "screened_trades": prediction["output"]["screened_trades"],
@@ -344,6 +377,8 @@ class Handler(SimpleHTTPRequestHandler):
                                  "audit_chain_intact": _AUDIT.verify_chain() is None})
             elif path == "/api/aml/decide":
                 self._send_json(_aml_four_eyes(self._read_body()))
+            elif path == "/api/screening/resolve":
+                self._send_json(_screening_resolve(self._read_body()))
             elif path == "/api/cases/decide":
                 self._send_json(cases_view.decide(
                     _REGISTRY, _AUDIT, _CASES_FOUR_EYES, self._read_body(),

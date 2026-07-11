@@ -1,0 +1,28 @@
+{
+  "urn": "urn:fcc:client:screening-hits",
+  "domain": "client",
+  "name": "Watchlist Screening Hits",
+  "version": "1.0.0",
+  "owner": "client-lifecycle@fcc",
+  "description": "Correspondances du criblage nominatif des dossiers KYC contre les listes de surveillance (sanctions, PEP, médias défavorables). Matching flou avec score explicable, identifiants secondaires et seuils déclaratifs (mesh/watchlist.py). La liste embarquée est SIMULÉE (G8) ; un connecteur de listes réelles sous licence est une décision humaine. Chaque hit exige une résolution humaine journalisée ; les faux positifs résolus sont supprimés tant que la version de liste ne change pas.",
+  "output_schema": {
+    "entity": "ScreeningHit",
+    "fields": [
+      {"name": "hit_id", "type": "string"},
+      {"name": "client_id", "type": "string", "ontology_term": "Client"},
+      {"name": "client_name", "type": "string"},
+      {"name": "list_entry", "type": "string"},
+      {"name": "matched_alias", "type": "string"},
+      {"name": "entry_type", "type": "string"},
+      {"name": "list_ref", "type": "string"},
+      {"name": "score", "type": "number"},
+      {"name": "strength", "type": "string"},
+      {"name": "suppressed", "type": "boolean"},
+      {"name": "list_version", "type": "string"},
+      {"name": "screened_at", "type": "timestamp"}
+    ]
+  },
+  "slo": {"freshness_seconds": 86400, "max_violation_rate": 0.0, "cooldown_seconds": 3600},
+  "access": {"classification": "restricted", "roles": ["compliance-officer", "auditor"]},
+  "sources": ["urn:fcc:client:kyc-profiles"]
+}

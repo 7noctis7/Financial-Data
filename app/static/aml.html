@@ -151,6 +151,16 @@
       <div class="tscroll"><table id="profiles"></table></div>
     </div>
     <div class="card">
+      <h2>Criblage listes de surveillance <span class="chip" style="border-color:var(--warning);color:var(--warning)">liste SIMULÉE</span></h2>
+      <p class="hint">Matching flou façon World-Check : score explicable, alias, identifiant
+        secondaire (pays), seuils <b>fort ≥ 88 %</b> / <b>possible ≥ 72 %</b>. Chaque hit exige une
+        <b>résolution humaine</b> journalisée ; un faux positif résolu est <b>supprimé</b> des criblages
+        suivants tant que la liste ne change pas de version. Un vrai connecteur de listes (UE/OFAC/ONU
+        sous licence) est une décision humaine — version <code id="wl-version"></code>.</p>
+      <div class="tscroll"><table id="screening"></table></div>
+      <p class="note" id="screening-note"></p>
+    </div>
+    <div class="card">
       <h2>Alertes du jour</h2>
       <p class="hint" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         Score explicable — modèle <code id="model"></code>
@@ -335,6 +345,7 @@ function render(data) {
       <div class="value">${data.screened_trades.toLocaleString("fr-FR")} → ${data.alerts.length}</div>
       <div class="why">criblés → alertes (${(data.alerts.length / (data.screened_trades || 1) * 100).toFixed(1)} %) → <a href="cases.html" style="color:var(--accent)">cas</a></div></div>`;
   $("#model").textContent = data.model;
+  renderScreening(data);
   window.__renderAlerts = () => renderAlerts(data);
   window.__openDossier = (lei) => {
     const p = data.profiles.find((x) => x.lei === lei);
@@ -358,6 +369,47 @@ function render(data) {
     ? "Version en ligne : lecture seule — les décisions se prennent en local (<code>python3 -m app</code>). "
     : "Escalade et classement entrent dans la chaîne d'audit et calibrent les scores futurs (feedback <code>data/feedback-aml.jsonl</code>). ")
     + `Lineage XAI : ${data.lineage_proof.map((p) => "<code>" + p.urn.replace("urn:fcc:", "") + "</code>").join(", ")}.`;
+}
+
+
+function renderScreening(data) {
+  const sc = data.screening;
+  if (!sc) return;
+  $("#wl-version").textContent = sc.list_version;
+  const t = $("#screening");
+  const active = sc.hits.filter((h) => !h.suppressed);
+  t.innerHTML = "<tr><th>Client</th><th>Entrée de liste</th><th>Type</th><th>Score</th><th>Pays (2e id)</th><th></th></tr>" +
+    (active.length ? active.map((h, i) => `<tr>
+      <td>${h.client_name}<br><span class="why">${h.client_id}</span></td>
+      <td>${h.list_entry}${h.matched_alias !== h.list_entry ? `<br><span class="why">via alias « ${h.matched_alias} »</span>` : ""}<br><span class="why">${h.list_ref}</span></td>
+      <td><span class="chip ${h.entry_type === "sanction" ? "high" : h.entry_type === "pep" ? "pep" : "medium"}">${h.entry_type}</span></td>
+      <td><div class="score"><div class="meter"><div style="width:${h.score * 100}%"></div></div>
+          <span class="pct">${(h.score * 100).toFixed(0)} %</span></div>
+          <span class="why">${h.strength === "strong" ? "correspondance forte" : "possible"}</span></td>
+      <td><span class="why">${h.secondary_id.country_profile} vs ${h.secondary_id.country_list} ${h.secondary_id.match ? "✓" : "✗"}</span></td>
+      <td class="actions" data-hit="${i}">${STATIC
+        ? '<span class="why">résolution : en local</span>'
+        : '<button class="esc">Vrai match</button><button class="dis">Faux positif</button>'}</td></tr>`).join("")
+      : '<tr><td colspan="6" class="why">Aucune correspondance active — ' + sc.suppressed_count + ' faux positif(s) supprimé(s).</td></tr>');
+  $("#screening-note").textContent =
+    `${active.length} hit(s) à résoudre · ${sc.suppressed_count} supprimé(s) (faux positifs résolus, version ${sc.list_version}).`;
+  if (!STATIC) t.querySelectorAll("td[data-hit]").forEach((cell) => {
+    const h = active[Number(cell.dataset.hit)];
+    cell.querySelector(".esc").onclick = () => resolveHit(cell, h, true);
+    cell.querySelector(".dis").onclick = () => resolveHit(cell, h, false);
+  });
+}
+
+async function resolveHit(cell, hit, trueMatch) {
+  const res = await fetch("/api/screening/resolve", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ hit, true_match: trueMatch, actor: "analyste-1",
+                           timestamp: new Date().toISOString().slice(0, 19) + "Z" }) });
+  const body = await res.json();
+  if (!res.ok) { window.alert(body.error); return; }
+  cell.innerHTML = trueMatch
+    ? '<span class="decided esc">vrai match — journalisé</span> <a href="cases.html" class="why" style="color:var(--accent)">ouvrir un cas →</a>'
+    : '<span class="decided dis">faux positif — supprimé des criblages suivants</span>';
 }
 
 async function decideRow(row, alert_, escalated, actor) {
